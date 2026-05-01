@@ -1,0 +1,122 @@
+{
+  "theme": "light",
+  "archetype": "1_organic_earthy",
+  "archetype_description": "Japanese Heritage & Dojo. Warm, tactile, disciplined, minimalist.",
+  "colors": {
+    "background": {
+      "default": "#F7F5F0",
+      "alt": "#EFECE5",
+      "dark": "#121212",
+      "dark_alt": "#1C1C1C"
+    },
+    "primary": {
+      "DEFAULT": "#C1121F",
+      "foreground": "#FFFFFF",
+      "hover": "#A10F1A"
+    },
+    "text": {
+      "primary": "#1A1A1A",
+      "secondary": "#4A4A4A",
+      "inverse": "#F0EDDE"
+    },
+    "border": {
+      "default": "#E0DCD0",
+      "dark": "#333333"
+    },
+    "status": {
+      "success": "#2E4E3F",
+      "warning": "#B87F17",
+      "error": "#C1121F"
+    }
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Cormorant Garamond, serif",
+      "weight": "font-medium to font-bold",
+      "tracking": "tracking-tight",
+      "style_notes": "Use for all H1, H2, H3. Evokes traditional ink strokes and heritage."
+    },
+    "body": {
+      "font_family": "Outfit, sans-serif",
+      "weight": "font-light to font-normal",
+      "tracking": "tracking-normal",
+      "style_notes": "Clean, highly legible for dense dashboard data and marketing copy."
+    },
+    "accent": {
+      "font_family": "Space Mono, monospace",
+      "style_notes": "Use exclusively for QR codes, ID numbers, access codes, and payment ledgers."
+    }
+  },
+  "spacing_and_layout": {
+    "marketing": {
+      "grid": "Bento 'Tetris' Grid (Mode A) - Wide gap-8 to gap-12. Asymmetrical layout.",
+      "padding": "Generous sections (py-24, py-32). Containers have internal p-8 or p-12."
+    },
+    "dashboard": {
+      "grid": "Control Room Grid (Mode B) - Tight gap-4 or gap-6. Dense data presentation.",
+      "padding": "Strict p-4 to p-6 for widgets. Maximize viewport utility.",
+      "style": "Sharp corners (rounded-none or max rounded-sm). Grid Borders (visible skeleton)."
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp-cornered rectangle or perfectly pill-shaped. No in-between.",
+      "hover": "Subtle scale down (scale-95) and bg color darken. Add a 1px border on secondary buttons.",
+      "primary_class": "bg-[#C1121F] text-white hover:bg-[#A10F1A] transition-all rounded-sm"
+    },
+    "cards": {
+      "marketing": "Cardless or completely flat with a subtle 1px border (#E0DCD0) and no shadow. Let the content breathe.",
+      "dashboard": "Flat background, 1px border, no shadow. Sharp edges (rounded-none or rounded-sm).",
+      "id_card": "The 'Tactile' variant. Needs to look like a physical belt-rank certificate. Heavy drop-shadow (shadow-2xl), #F7F5F0 background, elegant border, incorporating the QR/Barcode."
+    },
+    "navigation": {
+      "style": "Solid background or very heavy crystal glassmorphism (bg-white/90 backdrop-blur-xl) to ensure legibility."
+    }
+  },
+  "motion_and_interactions": {
+    "hover": "Elements should have intentional, crisp transitions (e.g. border color changes from light grey to charcoal).",
+    "page_load": "Staggered fade-up (opacity + slight Y-translate) using framer-motion. Keep it calm, like drawing a breath before a kata."
+  },
+  "media_and_assets": {
+    "images": [
+      {
+        "category": "hero_background",
+        "url": "https://images.unsplash.com/photo-1773017825177-25acaa271258?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwxfHx0cmFkaXRpb25hbCUyMHNob3Rva2FuJTIwa2FyYXRlJTIwZG9qbyUyMGludGVyaW9yfGVufDB8fHx8MTc3NzYxMTM4NXww&ixlib=rb-4.1.0&q=85",
+        "description": "Sunlight streams into a traditional japanese room. Use with max bg-black/40 overlay."
+      },
+      {
+        "category": "texture_sumie",
+        "url": "https://images.unsplash.com/photo-1762114974502-551aeb189066?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NjZ8MHwxfHNlYXJjaHwzfHxzdW1pJTIwZSUyMGluayUyMHN0cm9rZSUyMGJhY2tncm91bmQlMjB0ZXh0dXJlfGVufDB8fHx8MTc3NzYxMTM4NXww&ixlib=rb-4.1.0&q=85",
+        "description": "Traditional ink wash painting of a mountainous landscape. Use as subtle background texture."
+      },
+      {
+        "category": "dojo_interior",
+        "url": "https://images.unsplash.com/photo-1776090188738-148faec54948?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHwzfHx0cmFkaXRpb25hbCUyMHNob3Rva2FuJTIwa2FyYXRlJTIwZG9qbyUyMGludGVyaW9yfGVufDB8fHx8MTc3NzYxMTM4NXww&ixlib=rb-4.1.0&q=85",
+        "description": "A grand hall. Great for programs or about section."
+      },
+      {
+        "category": "sensei_instructor",
+        "url": "https://images.unsplash.com/photo-1514134584095-ddbbb1e87164?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHw0fHxrYXJhdGUlMjBzZW5zZWklMjBpbnN0cnVjdG9yJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzc3NjExMzkxfDA&ixlib=rb-4.1.0&q=85",
+        "description": "Man holding a sword / sensei figure. Use for About Sensei section."
+      },
+      {
+        "category": "black_belt_texture",
+        "url": "https://images.unsplash.com/photo-1662581379063-035fab1a0e47?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMzV8MHwxfHNlYXJjaHwyfHxibGFjayUyMGJlbHQlMjBrYXJhdGUlMjB0ZXh0dXJlfGVufDB8fHx8MTc3NzYxMTM5MXww&ixlib=rb-4.1.0&q=85",
+        "description": "Background texture pattern for ID cards or premium sections."
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "Build a hybrid application: Public marketing pages + 3 Role-based dashboards.",
+    "Database: Set up roles (super_admin, admin, student). Students require an 'access_code' provided by an admin to register.",
+    "Marketing Pages: Home, About Sensei, Programs, Schedule, News, Contact. Use the Bento Grid for layout. Inject the provided media assets.",
+    "Auth Flow: Login and Registration. Registration requires an access code check.",
+    "Student Dashboard: Profile view, ID Card visual (implement qrcode.react and react-barcode), Payments Due, Payment History, Class Schedule.",
+    "Admin Dashboard: Manage Students (CRUD, update basic settings), Generate/Manage Access Codes, Record/Manage Payments.",
+    "Super Admin Dashboard: Manage Admins and Students, CMS Editor (manage content for public marketing pages), Global Payments Overview, Global Access Codes.",
+    "ID Card Feature: Design a certificate-like ID card that displays the user's QR code and Barcode prominently. Use heavy shadow and rice-paper style background.",
+    "Testing: Add `data-testid` to all interactive elements, buttons, and form inputs (e.g. `data-testid=\"login-submit-button\"`).",
+    "Tailwind: Do NOT use rounded-xl or large border radiuses. Use rounded-none or rounded-sm to maintain the traditional disciplined Dojo feel.",
+    "Typography: Use Cormorant Garamond for headings (tracking-tight) and Outfit for body. Use Space Mono for numeric data like access codes."
+  ]
+}
