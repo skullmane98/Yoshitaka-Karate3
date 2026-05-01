@@ -218,8 +218,8 @@ def set_auth_cookie(response: Response, token: str):
         key="access_token",
         value=token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
         max_age=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         path="/",
     )
@@ -239,7 +239,7 @@ def generate_access_code() -> str:
 # -----------------------------------------------------------------------------
 # Auth Endpoints
 # -----------------------------------------------------------------------------
-@api_router.post("/auth/register", response_model=UserPublic)
+@api_router.post("/auth/register")
 async def register(payload: RegisterRequest, response: Response):
     email = payload.email.lower()
     existing = await db.users.find_one({"email": email})
@@ -277,10 +277,11 @@ async def register(payload: RegisterRequest, response: Response):
     set_auth_cookie(response, token)
     user_doc.pop("password_hash", None)
     user_doc.pop("_id", None)
-    return user_to_public(user_doc)
+    pub = user_to_public(user_doc)
+    return {**pub.model_dump(), "token": token}
 
 
-@api_router.post("/auth/login", response_model=UserPublic)
+@api_router.post("/auth/login")
 async def login(payload: LoginRequest, response: Response):
     email = payload.email.lower()
     user = await db.users.find_one({"email": email}, {"_id": 0})
@@ -290,7 +291,8 @@ async def login(payload: LoginRequest, response: Response):
         raise HTTPException(status_code=403, detail="Account disabled")
     token = create_access_token(user["id"], user["email"], user["role"])
     set_auth_cookie(response, token)
-    return user_to_public(user)
+    pub = user_to_public(user)
+    return {**pub.model_dump(), "token": token}
 
 
 @api_router.post("/auth/logout")
@@ -847,10 +849,12 @@ async def shutdown_db_client():
 # Include router
 app.include_router(api_router)
 
+_cors_origins = os.environ.get('CORS_ORIGINS', '*').split(',')
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
+    allow_origins=_cors_origins if _cors_origins != ['*'] else [],
+    allow_origin_regex=r"https?://([a-z0-9-]+\.)*(preview\.)?emergentagent\.com|http://localhost(:\d+)?",
     allow_methods=["*"],
     allow_headers=["*"],
 )

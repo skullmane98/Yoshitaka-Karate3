@@ -1,6 +1,6 @@
 // Centralized brand assets
-export const LOGO_URL =
-  "https://customer-assets.emergentagent.com/job_karate-access-hub/artifacts/prkh9q9v_YoshitakaEmblem.jpg";
+// Logo is served from /public so it shares the frontend origin (no CORS issues for html2canvas).
+export const LOGO_URL = `${process.env.PUBLIC_URL || ""}/yoshitaka-emblem.jpg`;
 
 export const BRAND = {
   name: "Yoshitaka Karate-Do",

@@ -87,6 +87,29 @@ class TestAuth:
         assert d["email"] == SUPER_EMAIL
         assert d["role"] == "super_admin"
         assert s.cookies.get("access_token")
+        # New: bearer token must also be returned in body
+        assert isinstance(d.get("token"), str) and len(d["token"]) > 20
+
+    def test_login_token_is_usable_as_bearer(self):
+        s = _sess()
+        r = s.post(f"{API}/auth/login", json={"email": SUPER_EMAIL, "password": SUPER_PASS})
+        token = r.json()["token"]
+        # New session WITHOUT cookies, only Authorization header
+        s2 = requests.Session()
+        s2.headers.update({"Authorization": f"Bearer {token}", "Content-Type": "application/json"})
+        me = s2.get(f"{API}/auth/me")
+        assert me.status_code == 200
+        assert me.json()["role"] == "super_admin"
+
+    def test_register_returns_token(self, super_sess):
+        cr = super_sess.post(f"{API}/access-codes", json={"role": "student", "max_uses": 1, "note": "TEST_tok"})
+        code = cr.json()["code"]
+        r = _sess().post(f"{API}/auth/register", json={
+            "email": _unique_email("TEST_tok"), "password": "Password1!",
+            "name": "TokUser", "access_code": code,
+        })
+        assert r.status_code == 200
+        assert isinstance(r.json().get("token"), str) and len(r.json()["token"]) > 20
 
     def test_login_invalid(self):
         r = _sess().post(f"{API}/auth/login", json={"email": SUPER_EMAIL, "password": "wrong"})

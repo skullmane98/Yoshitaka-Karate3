@@ -26,12 +26,14 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     const { data } = await api.post("/auth/login", { email, password });
+    if (data.token) localStorage.setItem("yk_token", data.token);
     setUser(data);
     return data;
   };
 
   const register = async (payload) => {
     const { data } = await api.post("/auth/register", payload);
+    if (data.token) localStorage.setItem("yk_token", data.token);
     setUser(data);
     return data;
   };

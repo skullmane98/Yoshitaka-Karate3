@@ -1,0 +1,38 @@
+{
+  "summary": "Re-tested after fixes. Backend: 42/42 pytest cases pass (40 prior + 2 new for token-in-body & Bearer-auth round-trip). Frontend on https://karate-access-hub.preview.emergentagent.com works end-to-end: login lands on /dashboard/super-admin, yk_token (len=261) is stored in localStorage, Bearer auth holds across reload (auth/me OK), ID card now SHOWS the Yoshitaka emblem from /yoshitaka-emblem.jpg (800x600, complete), PDF downloads as yoshitaka-id-YK32752360.pdf at 7.70 MB (>500KB), forgot-password success state shown, /reset-password?token= flow updates password and login with new password works. Theme: hinomaru-red accent dot present, no purple/violet anywhere, dojo-green primary. Super admin password RESTORED to SuperAdmin2026! at end of run.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "/auth/forgot-password and /auth/reset-password still take raw `dict` payloads instead of Pydantic models (ForgotPasswordRequest, ResetPasswordRequest with EmailStr / min_length=6). Functional but loses OpenAPI typing and validation symmetry with the rest of the API.",
+    "password_reset_tokens collection has no TTL index on expires_at — used/expired rows accumulate. Add TTL or scheduled cleanup before going to prod.",
+    "JWT lives in BOTH localStorage (yk_token, accessible to JS) AND an httpOnly cookie. Storing JWTs in localStorage exposes them to XSS; since the cookie auth already works server-side, consider keeping cookie-only and removing the localStorage fallback once CORS is fixed for prod (set explicit allowed origin instead of `*`).",
+    "CORS in server.py uses `allow_origins=os.environ.get('CORS_ORIGINS','*').split(',')` with `allow_credentials=True`. Browsers reject `*` with credentials; works today only because frontend & backend share origin via the ingress. Set explicit origins for prod.",
+    "server.py is ~860 lines — split into routers (auth, users, access_codes, payments, cms, qrcode, stats) when convenient.",
+    "reset-password endpoint does not invalidate existing JWTs on success — a pre-existing session keeps working. Acceptable but should be documented or short-token-rotated."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {
+    "backend": "100% (42/42 pytest)",
+    "frontend": "100% of critical flows (login, Bearer-auth refresh, ID card emblem, PDF export, forgot, reset, theme)"
+  },
+  "test_credentials": "superadmin@yoshitaka.com / SuperAdmin2026! (RESTORED at end of run via second forgot/reset cycle). Seeded codes: student GHZ6-WHLZ, admin LCWD-95WP (may be partially consumed).",
+  "seed_data_creation": "No new seed data beyond TEST_-prefixed users/codes/payments created and self-cleaned by the suite.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend tests live at /app/backend/tests/backend_test.py (42 cases). Two new TestAuth tests verify (a) token field in /auth/login body and (b) that the token works as `Authorization: Bearer` (no cookies). Frontend Bearer auth: AuthContext stores yk_token in localStorage; api.js sends it and runs withCredentials=false. Emblem moved to /app/frontend/public/yoshitaka-emblem.jpg — html2canvas now snapshots it cleanly (no CORS). Reset tokens are still scraped from /var/log/supervisor/backend.err.log line `PASSWORD RESET LINK for <email>: ...token=<X>`.",
+  "rca of the issue": "Previous iteration's CORS-blocked emblem is fixed. The image is served by the frontend itself (/yoshitaka-emblem.jpg from /public) so it's same-origin: html2canvas reads it without taint and the rendered PDF (7.7 MB) embeds the green-ribbon emblem alongside the QR + barcode. The previous CORS-vs-credentials clash was resolved by switching the frontend to Bearer-token auth (withCredentials=false), so the ingress' `Access-Control-Allow-Origin: *` no longer conflicts with credentialed requests. Cookie auth is still emitted as a fallback."
+}

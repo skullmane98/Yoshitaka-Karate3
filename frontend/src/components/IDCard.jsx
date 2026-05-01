@@ -67,7 +67,7 @@ export default function IDCard({ user }) {
       <div ref={cardRef} className="id-card p-8 md:p-10" data-testid="id-card">
         <div className="flex items-start justify-between mb-6 gap-4">
           <div className="flex items-center gap-4">
-            <img src={LOGO_URL} crossOrigin="anonymous" alt="" className="h-16 w-16 object-contain" />
+            <img src={LOGO_URL} alt="" className="h-16 w-16 object-contain" />
             <div>
               <div className="text-[10px] uppercase tracking-[0.28em] text-[#4A4A4A] mb-1">Yoshitaka Karate-Do</div>
               <div className="font-serif text-3xl md:text-4xl font-medium tracking-tight leading-none">Member Certificate</div>
