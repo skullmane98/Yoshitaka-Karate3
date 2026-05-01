@@ -17,6 +17,7 @@ export default function RichTextEditor({ value, onChange, placeholder, minHeight
         heading: { levels: [2, 3] },
         bulletList: { keepMarks: true },
         orderedList: { keepMarks: true },
+        link: false,
       }),
       Link.configure({ openOnClick: false, HTMLAttributes: { class: "underline" } }),
     ],
