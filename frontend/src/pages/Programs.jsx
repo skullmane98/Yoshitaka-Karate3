@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import PublicLayout from "@/components/PublicLayout";
+import RichContent from "@/components/RichContent";
 import api from "@/lib/api";
 
 export default function Programs() {
@@ -22,7 +23,11 @@ export default function Programs() {
             >
               <div className="text-[10px] uppercase tracking-[0.3em] text-[#1A7A3D] mb-3">Program · 0{i + 1}</div>
               <h3 className="font-serif text-3xl md:text-4xl mb-4 tracking-tight">{p.name}</h3>
-              <p className="text-[#4A4A4A] leading-relaxed">{p.desc}</p>
+              {/^\s*</.test(p.desc || "") ? (
+                <RichContent html={p.desc} className="text-[#4A4A4A] [&_p]:leading-relaxed" />
+              ) : (
+                <p className="text-[#4A4A4A] leading-relaxed">{p.desc}</p>
+              )}
             </div>
           ))}
         </div>

@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Copy, Trash2, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import IDCard from "@/components/IDCard";
+import { getEditorForSlug } from "@/components/CMSEditors";
 
 const ROLES_FOR = {
   admin: ["student"],
@@ -479,15 +480,16 @@ function NewPaymentModal({ user, onClose, onSaved }) {
 
 function EditPageModal({ page, onClose, onSaved }) {
   const [title, setTitle] = useState(page.title);
-  const [json, setJson] = useState(JSON.stringify(page.content, null, 2));
+  const [content, setContent] = useState(page.content);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [showJson, setShowJson] = useState(false);
+
+  const Editor = getEditorForSlug(page.slug);
 
   const save = async (e) => {
     e.preventDefault();
     setErr(""); setBusy(true);
-    let content;
-    try { content = JSON.parse(json); } catch (pe) { setErr("Invalid JSON: " + pe.message); setBusy(false); return; }
     try {
       await api.put(`/cms/pages/${page.slug}`, { title, content });
       toast.success("Page saved");
@@ -498,20 +500,36 @@ function EditPageModal({ page, onClose, onSaved }) {
 
   return (
     <Modal title={`Edit /${page.slug}`} onClose={onClose} wide>
-      <form onSubmit={save} className="space-y-4">
-        <Field label="Page Title"><input value={title} onChange={(e) => setTitle(e.target.value)} className="input" data-testid="edit-page-title" /></Field>
-        <Field label="Content (JSON)">
-          <textarea
-            value={json}
-            onChange={(e) => setJson(e.target.value)}
-            rows={18}
-            spellCheck={false}
-            className="input font-mono-accent text-xs"
-            data-testid="edit-page-json"
-          />
-        </Field>
+      <form onSubmit={save} className="space-y-5">
+        {Editor ? (
+          <Editor value={content} onChange={setContent} title={title} onTitleChange={setTitle} />
+        ) : (
+          <Field label="Content (JSON)">
+            <textarea
+              value={JSON.stringify(content, null, 2)}
+              onChange={(e) => {
+                try { setContent(JSON.parse(e.target.value)); setErr(""); }
+                catch (pe) { setErr("Invalid JSON: " + pe.message); }
+              }}
+              rows={18}
+              spellCheck={false}
+              className="input font-mono-accent text-xs"
+              data-testid="edit-page-json"
+            />
+          </Field>
+        )}
+
+        {Editor && (
+          <details className="border-t border-[#DCD9CF] pt-3">
+            <summary className="text-[10px] uppercase tracking-[0.24em] text-[#4A4A4A] cursor-pointer" onClick={() => setShowJson(!showJson)}>
+              Advanced · View raw JSON
+            </summary>
+            <pre className="text-xs font-mono-accent bg-[#F1EEE5] p-3 mt-2 overflow-auto max-h-60">{JSON.stringify(content, null, 2)}</pre>
+          </details>
+        )}
+
         {err && <div className="text-[#D7263D] text-sm" data-testid="edit-page-error">{err}</div>}
-        <div className="flex gap-3">
+        <div className="flex gap-3 sticky bottom-0 bg-[#FBFAF6] pt-3 border-t border-[#DCD9CF]">
           <button type="submit" className="btn-primary flex-1" disabled={busy} data-testid="edit-page-save">{busy ? "Saving…" : "Save Page"}</button>
           <button type="button" className="btn-outline" onClick={onClose}>Cancel</button>
         </div>

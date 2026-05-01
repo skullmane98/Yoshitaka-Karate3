@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import PublicLayout from "@/components/PublicLayout";
+import RichContent from "@/components/RichContent";
 import api from "@/lib/api";
 
 export default function News() {
@@ -20,7 +21,11 @@ export default function News() {
               </div>
               <div>
                 <h2 className="font-serif text-3xl md:text-4xl mb-3 tracking-tight">{p.title}</h2>
-                <p className="text-[#4A4A4A] leading-relaxed">{p.body}</p>
+                {/^\s*</.test(p.body || "") ? (
+                  <RichContent html={p.body} className="text-[#4A4A4A] [&_p]:leading-relaxed" />
+                ) : (
+                  <p className="text-[#4A4A4A] leading-relaxed">{p.body}</p>
+                )}
               </div>
             </article>
           ))}

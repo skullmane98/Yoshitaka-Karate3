@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import PublicLayout from "@/components/PublicLayout";
+import RichContent from "@/components/RichContent";
 import api from "@/lib/api";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
@@ -78,9 +79,13 @@ export default function Home() {
             The dojo is a mirror.
           </h2>
           <div className="brush-divider mb-6 max-w-xs" />
-          <p className="text-base md:text-lg text-[#4A4A4A] leading-relaxed font-light">
-            {c.intro || "Every class is a return to fundamentals — stance, breath, and intent."}
-          </p>
+          {/^\s*</.test(c.intro || "") ? (
+            <RichContent html={c.intro} className="text-base md:text-lg text-[#4A4A4A] [&_p]:leading-relaxed [&_p]:font-light" />
+          ) : (
+            <p className="text-base md:text-lg text-[#4A4A4A] leading-relaxed font-light">
+              {c.intro || "Every class is a return to fundamentals — stance, breath, and intent."}
+            </p>
+          )}
         </div>
         <div className="md:col-span-7">
           <img src={DOJO_IMG} alt="Dojo interior" className="w-full aspect-[4/3] object-cover" />

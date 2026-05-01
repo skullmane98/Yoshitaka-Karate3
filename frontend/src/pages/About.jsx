@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import PublicLayout from "@/components/PublicLayout";
+import RichContent from "@/components/RichContent";
 import api from "@/lib/api";
 
 const IMG = "https://images.unsplash.com/photo-1514134584095-ddbbb1e87164?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzR8MHwxfHNlYXJjaHw0fHxrYXJhdGUlMjBzZW5zZWklMjBpbnN0cnVjdG9yJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzc3NjExMzkxfDA&ixlib=rb-4.1.0&q=85";
@@ -23,9 +24,13 @@ export default function About() {
             </div>
           </div>
           <div className="md:col-span-7">
-            <p className="text-lg md:text-xl leading-relaxed text-[#0F0F0F] mb-8 font-light">
-              {c.sensei_bio || ""}
-            </p>
+            {/^\s*</.test(c.sensei_bio || "") ? (
+              <RichContent html={c.sensei_bio} className="text-lg md:text-xl text-[#0F0F0F] mb-8 [&_p]:font-light [&_p]:mb-4" />
+            ) : (
+              <p className="text-lg md:text-xl leading-relaxed text-[#0F0F0F] mb-8 font-light">
+                {c.sensei_bio || ""}
+              </p>
+            )}
             <div className="brush-divider my-8" />
             <blockquote className="font-serif text-2xl md:text-3xl italic leading-snug text-[#0F0F0F] max-w-2xl">
               “{c.philosophy || "Karate begins and ends with respect."}”
