@@ -1,115 +1,214 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Outfit:wght@200;300;400;500;600;700&family=Space+Mono:wght@400;700&family=Shippori+Mincho:wght@400;500;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-    margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+:root {
+  /* Dojo palette */
+  --dojo-paper: #F7F5F0;
+  --dojo-paper-alt: #EFECE5;
+  --dojo-ink: #1A1A1A;
+  --dojo-ink-soft: #4A4A4A;
+  --dojo-hinomaru: #C1121F;
+  --dojo-hinomaru-dark: #A10F1A;
+  --dojo-border: #E0DCD0;
+  --dojo-moss: #2E4E3F;
+  --dojo-gold: #B87F17;
+
+  /* Shadcn */
+  --background: 42 25% 95%;
+  --foreground: 0 0% 10%;
+  --card: 42 25% 97%;
+  --card-foreground: 0 0% 10%;
+  --popover: 42 25% 97%;
+  --popover-foreground: 0 0% 10%;
+  --primary: 356 83% 41%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 42 18% 90%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 42 18% 92%;
+  --muted-foreground: 0 0% 40%;
+  --accent: 42 18% 90%;
+  --accent-foreground: 0 0% 10%;
+  --destructive: 356 83% 41%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 42 15% 85%;
+  --input: 42 15% 85%;
+  --ring: 0 0% 10%;
+  --radius: 0.125rem;
 }
 
-code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
+* {
+  border-color: hsl(var(--border));
 }
 
-@layer base {
-    :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-    }
-    .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 14.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-    }
+html, body {
+  margin: 0;
+  background-color: var(--dojo-paper);
+  color: var(--dojo-ink);
+  font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.005em;
 }
 
-@layer base {
-    * {
-        @apply border-border;
-    }
-    body {
-        @apply bg-background text-foreground;
-    }
+.font-serif, h1, h2, h3, h4, .heading {
+  font-family: 'Cormorant Garamond', 'Shippori Mincho', Georgia, serif;
+  letter-spacing: -0.02em;
 }
 
-@layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
+.font-kanji {
+  font-family: 'Shippori Mincho', serif;
+  font-weight: 500;
+}
 
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
-    }
+.font-mono-accent {
+  font-family: 'Space Mono', 'Courier New', monospace;
+  letter-spacing: 0.02em;
+}
+
+/* Paper texture subtle */
+.paper-texture {
+  background-color: var(--dojo-paper);
+  background-image:
+    radial-gradient(at 15% 10%, rgba(193, 18, 31, 0.04) 0px, transparent 50%),
+    radial-gradient(at 85% 90%, rgba(0, 0, 0, 0.03) 0px, transparent 50%);
+}
+
+.ink-underline {
+  position: relative;
+  display: inline-block;
+}
+.ink-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 2px;
+  background: var(--dojo-ink);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ink-underline:hover::after {
+  transform: scaleX(1);
+}
+
+.hinomaru-dot {
+  width: 10px;
+  height: 10px;
+  background: var(--dojo-hinomaru);
+  border-radius: 9999px;
+  display: inline-block;
+}
+
+/* Button reset - sharp corners */
+.btn-primary {
+  background: var(--dojo-ink);
+  color: var(--dojo-paper);
+  padding: 0.85rem 2rem;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid var(--dojo-ink);
+  cursor: pointer;
+}
+.btn-primary:hover {
+  background: var(--dojo-hinomaru);
+  border-color: var(--dojo-hinomaru);
+}
+.btn-primary:active {
+  transform: scale(0.98);
+}
+
+.btn-outline {
+  background: transparent;
+  color: var(--dojo-ink);
+  padding: 0.85rem 2rem;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  border: 1px solid var(--dojo-ink);
+  transition: all 200ms ease;
+  cursor: pointer;
+}
+.btn-outline:hover {
+  background: var(--dojo-ink);
+  color: var(--dojo-paper);
+}
+
+/* Certificate-style ID card */
+.id-card {
+  background: var(--dojo-paper);
+  background-image:
+    repeating-linear-gradient(45deg, rgba(193, 18, 31, 0.015) 0 2px, transparent 2px 8px),
+    radial-gradient(circle at 50% 100%, rgba(193, 18, 31, 0.06), transparent 70%);
+  border: 1px solid var(--dojo-border);
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.18), 0 6px 10px -4px rgba(0, 0, 0, 0.06);
+  position: relative;
+}
+.id-card::before, .id-card::after {
+  content: '';
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: var(--dojo-hinomaru);
+  border-style: solid;
+}
+.id-card::before {
+  top: 10px; left: 10px;
+  border-width: 1px 0 0 1px;
+}
+.id-card::after {
+  bottom: 10px; right: 10px;
+  border-width: 0 1px 1px 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--dojo-paper); }
+::-webkit-scrollbar-thumb { background: var(--dojo-border); }
+::-webkit-scrollbar-thumb:hover { background: var(--dojo-ink-soft); }
+
+/* Selection */
+::selection { background: var(--dojo-ink); color: var(--dojo-paper); }
+
+/* Reveal animation */
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-up {
+  animation: fade-up 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Form input utility */
+.input {
+  width: 100%;
+  border: 1px solid var(--dojo-border);
+  background: #fff;
+  padding: 0.65rem 0.85rem;
+  color: var(--dojo-ink);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.875rem;
+  transition: border-color 180ms ease;
+}
+.input:focus {
+  outline: none;
+  border-color: var(--dojo-ink);
+}
+
+/* Subtle brush divider */
+.brush-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--dojo-ink) 20%, var(--dojo-ink) 80%, transparent 100%);
+  opacity: 0.6;
 }
