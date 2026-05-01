@@ -79,6 +79,7 @@ class UserUpdateRequest(BaseModel):
     belt_rank: Optional[str] = None
     active: Optional[bool] = None
     email: Optional[EmailStr] = None
+    role: Optional[Role] = None
 
 
 class PasswordChangeRequest(BaseModel):
@@ -404,7 +405,7 @@ async def update_user(
         # Users can update their own name/phone only
         allowed = {"name", "phone"}
     elif current["role"] == "super_admin":
-        allowed = {"name", "phone", "belt_rank", "active", "email"}
+        allowed = {"name", "phone", "belt_rank", "active", "email", "role"}
     elif current["role"] == "admin":
         if target["role"] != "student":
             raise HTTPException(status_code=403, detail="Admins can only edit students")
@@ -418,6 +419,17 @@ async def update_user(
         other = await db.users.find_one({"email": update["email"], "id": {"$ne": user_id}})
         if other:
             raise HTTPException(status_code=400, detail="Email in use")
+    if "role" in update and update["role"] != target["role"]:
+        # Safety: prevent demoting the last super admin
+        if target["role"] == "super_admin" and update["role"] != "super_admin":
+            sa_count = await db.users.count_documents({"role": "super_admin", "active": True})
+            if sa_count <= 1:
+                raise HTTPException(status_code=400, detail="Cannot demote the last super admin")
+        # Reset belt_rank when leaving student role; assign default when becoming student
+        if update["role"] == "student" and not target.get("belt_rank"):
+            update["belt_rank"] = "White Belt"
+        elif update["role"] != "student":
+            update["belt_rank"] = None
     if update:
         await db.users.update_one({"id": user_id}, {"$set": update})
     refreshed = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})

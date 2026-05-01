@@ -101,3 +101,52 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+user_problem_statement: "Allow super admin to change level of access to users (promote/demote roles between student/admin/super_admin)."
+
+backend:
+  - task: "Super admin can change user role via PATCH /api/users/{user_id}"
+    implemented: true
+    working: false
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added 'role' to UserUpdateRequest. Super admin can now change role; admins still cannot. Safety guards: cannot demote the last active super_admin, cannot change own role (self-edit allowed=name/phone only). Role transition: leaving 'student' clears belt_rank; becoming 'student' assigns 'White Belt' if missing."
+        - working: false
+          agent: "testing"
+          comment: "CRITICAL BUG FOUND: The safety check to prevent demoting the last super_admin is not working. Line 425 counts ALL super_admins including the one being demoted. When there are 2 super_admins and we try to demote one, the count is 2, so the check 'sa_count <= 1' doesn't trigger. But after demotion, only 1 super_admin would remain. FIX: Change line 425 to exclude the user being demoted: sa_count = await db.users.count_documents({'role': 'super_admin', 'active': True, 'id': {'$ne': user_id}}), and change line 426 to 'if sa_count < 1'. Test results: 9/10 scenarios passed. Scenarios 1-7, 9-10 all work correctly. Scenario 8 (cannot demote last super_admin) FAILED - demotion succeeded when it should have returned 400 error."
+
+frontend:
+  - task: "Role dropdown in EditUserModal (super admin only)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/dashboard/AdminDashboard.jsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+        - working: "NA"
+          agent: "main"
+          comment: "Added 'Role / Access Level' dropdown in EditUserModal. Visible only when isSuper && editing user is not self. Belt-rank field now shows based on form.role (so it appears/disappears as role changes). User did not request frontend testing yet."
+
+metadata:
+  created_by: "main_agent"
+  version: "1.1"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Super admin can change user role via PATCH /api/users/{user_id}"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    - agent: "main"
+      message: "Added role-change capability for super admin. Test scenarios: (1) super_admin promotes student→admin (success, belt cleared). (2) super_admin demotes admin→student (success, belt='White Belt' if was None). (3) admin tries to change role of student (must be IGNORED — admin cannot send role; payload silently dropped, 200 OK with role unchanged). (4) super_admin tries to change own role (allowed set excludes role for self, so silently ignored — 200 OK, role unchanged). (5) super_admin tries to demote the last active super_admin → 400 'Cannot demote the last super admin'. Login as superadmin@yoshitaka.com / SuperAdmin2026!. Use Bearer token from /auth/login."
+    - agent: "testing"
+      message: "Completed comprehensive backend testing of role-change capability. Created backend_test.py with 10 test scenarios covering all requirements. CRITICAL BUG FOUND in scenario 8: The safety check to prevent demoting the last super_admin is not working correctly. The count at line 425 includes the user being demoted, so when there are 2 super_admins and we try to demote one (which would leave only 1), the check doesn't trigger and the demotion succeeds. This violates the requirement that there must always be at least 1 super_admin. All other scenarios (1-7, 9-10) passed successfully: login works, role promotions/demotions work with correct belt_rank transitions, admins cannot change roles (silently ignored), self-edit role changes are silently ignored, existing flows (name/belt updates, admin permissions) all work correctly, and smoke tests for /auth/me, /access-codes, /payments all pass."

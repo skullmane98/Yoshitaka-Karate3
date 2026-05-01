@@ -410,11 +410,14 @@ function CMSPanel({ pages, onEdit }) {
 }
 
 function EditUserModal({ user, isSuper, onClose, onSaved }) {
+  const { user: currentUser } = useAuth();
+  const isSelf = currentUser?.id === user.id;
   const [form, setForm] = useState({
     name: user.name || "",
     phone: user.phone || "",
     belt_rank: user.belt_rank || "",
     email: user.email || "",
+    role: user.role,
     active: user.active,
   });
   const [newPw, setNewPw] = useState("");
@@ -425,7 +428,10 @@ function EditUserModal({ user, isSuper, onClose, onSaved }) {
     setBusy(true);
     try {
       const payload = { name: form.name, phone: form.phone, belt_rank: form.belt_rank, active: form.active };
-      if (isSuper) payload.email = form.email;
+      if (isSuper) {
+        payload.email = form.email;
+        if (!isSelf && form.role !== user.role) payload.role = form.role;
+      }
       await api.patch(`/users/${user.id}`, payload);
       if (newPw) await api.post(`/users/${user.id}/password`, { new_password: newPw });
       toast.success("User updated");
@@ -439,7 +445,26 @@ function EditUserModal({ user, isSuper, onClose, onSaved }) {
       <form onSubmit={save} className="space-y-4">
         <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" data-testid="edit-user-name" /></Field>
         <Field label="Phone"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" data-testid="edit-user-phone" /></Field>
-        {user.role === "student" && (
+        {isSuper && !isSelf && (
+          <Field label="Role / Access Level">
+            <select
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              className="input"
+              data-testid="edit-user-role"
+            >
+              <option value="student">Student</option>
+              <option value="admin">Admin</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+            {form.role !== user.role && (
+              <div className="text-[11px] text-[var(--dojo-hinomaru)] mt-1">
+                Changing role from <strong>{user.role.replace("_", " ")}</strong> to <strong>{form.role.replace("_", " ")}</strong>.
+              </div>
+            )}
+          </Field>
+        )}
+        {form.role === "student" && (
           <Field label="Belt Rank">
             <select value={form.belt_rank || ""} onChange={(e) => setForm({ ...form, belt_rank: e.target.value })} className="input" data-testid="edit-user-belt">
               <option value="">—</option>
