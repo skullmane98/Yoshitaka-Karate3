@@ -1123,14 +1123,20 @@ async def shutdown_db_client():
 
 
 # Include router
+@api_router.get("/")
+async def health_check():
+    return {"status": "ok", "service": "yoshitaka-karatedo-cms"}
+
+
 app.include_router(api_router)
 
-_cors_origins = os.environ.get('CORS_ORIGINS', '*').split(',')
+
+_cors_origins = [o.strip() for o in os.environ.get('CORS_ORIGINS', '*').split(',') if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=_cors_origins if _cors_origins != ['*'] else [],
-    allow_origin_regex=r"https?://([a-z0-9-]+\.)*(preview\.)?emergentagent\.com|http://localhost(:\d+)?",
+    allow_origin_regex=r"https?://([a-z0-9-]+\.)*(preview\.)?emergentagent\.com|http://localhost(:\d+)?|https?://([a-z0-9-]+\.)*hostingersite\.com",
     allow_methods=["*"],
     allow_headers=["*"],
 )
