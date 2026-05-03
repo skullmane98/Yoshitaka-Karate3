@@ -29,8 +29,22 @@ from pydantic import BaseModel, Field, EmailStr, ConfigDict
 # Setup
 # -----------------------------------------------------------------------------
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
 db = client[os.environ['DB_NAME']]
+
+# Log boot-time info (password masked) so Railway runtime logs show what happened
+_masked_mongo = mongo_url
+if "@" in _masked_mongo and "://" in _masked_mongo:
+    scheme, rest = _masked_mongo.split("://", 1)
+    if "@" in rest:
+        creds, host = rest.split("@", 1)
+        if ":" in creds:
+            user, _pw = creds.split(":", 1)
+            _masked_mongo = f"{scheme}://{user}:****@{host}"
+print(f"[boot] MONGO_URL = {_masked_mongo}", flush=True)
+print(f"[boot] DB_NAME   = {os.environ.get('DB_NAME')}", flush=True)
+print(f"[boot] PORT      = {os.environ.get('PORT', '(not set by Railway)')}", flush=True)
+print(f"[boot] CORS_ORIGINS = {os.environ.get('CORS_ORIGINS')}", flush=True)
 
 app = FastAPI(title="Yoshitaka Karate-Do CMS")
 api_router = APIRouter(prefix="/api")
