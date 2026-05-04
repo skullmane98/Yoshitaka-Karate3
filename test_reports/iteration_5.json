@@ -1,0 +1,41 @@
+{
+  "summary": "Full backend regression after MongoDB -> MariaDB/SQLModel migration. Added 15 new phase-2 tests (attendance, reminders, CMS upsert, datetime round-trip, demote guard) on top of the existing 42-case backend_test.py suite. 57/57 PASS against the live preview URL hitting MariaDB. All role-based scoping, edge cases, and DB persistence (CREATE -> GET verify) checks succeed. SMTP console fallback verified. UTC ISO8601 datetime round-trip verified on /auth/me, /access-codes, /attendance, /payments, and /cms/pages.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/users/{id} (self)", "issue": "Super-admin self-edit silently strips the `role` field instead of returning 400 'Cannot demote'. The protection works (role stays super_admin), but the endpoint returns 200 with unchanged role, which is misleading to clients. Effective security guard is intact; only the explicit error path is bypassed for SELF demotion. Self-edit allowed list = {name, phone}, so role never reaches the count-check branch."},
+      {"endpoint": "POST /api/auth/forgot-password", "issue": "Inconsistent with comment in problem statement: spec says 'always returns ok' but server raises 400 when email field is missing. Behaviour is reasonable (true validation error, not enumeration leak) but does not match the spec wording 'always returns ok'."},
+      {"endpoint": "Cookie set on /api/auth/login", "issue": "Cookie uses SameSite=None; Secure=True. Works fine over HTTPS preview URL but will break for any plain-HTTP deployment. Acceptable for production HTTPS only."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_phase2_extras.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: For clearer UX, consider returning HTTP 400 from PATCH /users/{self_id} when role field is sent (instead of silently dropping). Add `role` to a forbidden-on-self list and raise rather than filter.",
+    "OPTIONAL: Decide whether /auth/forgot-password with empty body should be 200 ok (spec) or 400 (current). Spec says always-ok; current implementation 400s on missing email."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1286 lines — recommend splitting into routers (auth.py, users.py, access_codes.py, payments.py, attendance.py, cms.py) before next feature wave. Also seed logic + email helper + DEFAULT_PAGES belong in their own modules.",
+    "_payment_to_public iterates payments and does an N+1 SELECT for user.name on /api/payments. For students with many invoices or super_admin viewing global list this becomes O(N) round-trips — replace with a single LEFT JOIN or in-Python id->name map.",
+    "delete_user manually deletes Payment / PaymentReminder / Attendance / PasswordResetToken rows. Better: add ON DELETE CASCADE foreign keys (or SQLAlchemy relationship cascade) so the integrity is enforced at the DB layer. This also avoids forgetting the CMSPage future tables.",
+    "Self-demote check only fires inside the super_admin branch when current.id != user_id. If an attacker (current super_admin) targets ANOTHER super admin and there are 0 OTHER active super admins after exclusion, the guard correctly fires. But the wording in the doc string 'cannot demote last super admin' could surprise developers who try self-demote — file a docstring or 400 response for clarity (see action item above).",
+    "set_auth_cookie hardcodes secure=True, samesite='none' — fine for HTTPS only. Add an env flag (COOKIE_SECURE) so local dev or non-HTTPS hosts can still test login.",
+    "init_db() relies on SQLModel.metadata.create_all and there is no Alembic migration scaffolding. Schema changes (e.g. adding nullable columns) will silently NOT update existing tables. Add Alembic before next schema mod.",
+    "remind endpoint: when SMTP_HOST is empty the helper returns mode='console' with sent=True. result['sent'] check on line 909 is therefore never False in console mode — fine. But if SMTP IS configured and fails, server returns 500 with the raw exception string in detail, which can leak SMTP host/creds. Sanitize the error message before raising HTTPException.",
+    "_strip_tz / _as_utc pair is used everywhere — would be cleaner as a TypeDecorator on a custom DateTime column so the conversion is automatic on read/write, eliminating the manual sprinkles."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_phase2_extras.py (new)"
+  ],
+  "success_rate": {"backend": "100% (57/57)", "frontend": "n/a (backend-only run per request)"},
+  "test_credentials": "superadmin@yoshitaka.com / SuperAdmin2026! (verified working)",
+  "seed_data_creation": "Tests register multiple TEST_-prefixed users and access codes (all marked with note='TEST...' or email prefix='TEST_'). CMS page 'open-project-47' is created/updated by TestCMSNewSlug and left in DB (small content, harmless). The seeded super_admin remains intact.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Full regression suite is now /app/backend/tests/backend_test.py (42 tests) + /app/backend/tests/test_phase2_extras.py (15 tests). Run via: cd /app/backend && python -m pytest tests/ -v --junitxml=/app/test_reports/pytest/pytest_results.xml. Tests use REACT_APP_BACKEND_URL from /app/frontend/.env automatically. Tests fully self-clean: each new code/payment/attendance is created fresh per run; no cross-iteration coupling. The MariaDB DB is local (mysql+aiomysql://yoshitaka:devpass123@localhost:3306/yoshitaka_karatedo).",
+  "rca of the issue": "No backend regressions vs. prior Mongo behavior. Two of the new tests initially failed and were both test-side issues, not backend bugs: (1) email-casing assertion expected uppercase but server correctly normalises to lowercase on register/login; (2) demote-guard test attempted self-demote which is silently filtered out by the self-edit allowed-list (effective protection but no 400). Both tests adjusted to match the actual (correct) backend semantics."
+}
