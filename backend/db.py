@@ -2,6 +2,9 @@
 
 DATABASE_URL format (async):
   mysql+aiomysql://user:pass@host:port/dbname
+
+Hardened for Hostinger shared MySQL which aggressively closes idle connections
+(typically after ~60-300s) and occasionally drops mid-query.
 """
 import os
 from typing import AsyncGenerator
@@ -11,12 +14,19 @@ from sqlmodel import SQLModel
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
-# pool_pre_ping avoids stale-connection errors on shared hosts (e.g. Hostinger).
+# Aggressive resilience for Hostinger shared MySQL:
+# - pool_pre_ping: test every connection before using it (catches dropped sockets)
+# - pool_recycle=280: recycle BEFORE Hostinger's typical 300s wait_timeout
+# - pool_size=5, max_overflow=5: small pool — Hostinger limits concurrent connections
+# - connect timeout: don't hang forever if MySQL is slow to handshake
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
     pool_pre_ping=True,
-    pool_recycle=1800,
+    pool_recycle=280,
+    pool_size=5,
+    max_overflow=5,
+    connect_args={"connect_timeout": 10},
 )
 
 async_session_factory = async_sessionmaker(
@@ -28,7 +38,11 @@ async_session_factory = async_sessionmaker(
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     async with async_session_factory() as session:
-        yield session
+        try:
+            yield session
+        except Exception:
+            await session.rollback()
+            raise
 
 
 async def init_db() -> None:

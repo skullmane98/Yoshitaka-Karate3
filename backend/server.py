@@ -20,6 +20,7 @@ import barcode
 from barcode.writer import ImageWriter
 
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy import func, select, delete
@@ -58,6 +59,30 @@ print(f"[boot] CORS_ORIGINS  = {os.environ.get('CORS_ORIGINS')}", flush=True)
 
 app = FastAPI(title="Yoshitaka Karate-Do CMS")
 api_router = APIRouter(prefix="/api")
+
+
+# Surface the real exception in Render logs (was silently returning 500).
+@app.exception_handler(Exception)
+async def _unhandled_exception(request: Request, exc: Exception):
+    import traceback
+    logger.error(
+        "UNHANDLED %s %s -> %s: %s\n%s",
+        request.method, request.url.path, type(exc).__name__, exc, traceback.format_exc(),
+    )
+    # If the DB pool got into a bad state (e.g. Hostinger killed all idle connections),
+    # dispose it so the next request rebuilds clean connections.
+    msg = str(exc).lower()
+    if "operationalerror" in type(exc).__name__.lower() or "lost connection" in msg or "gone away" in msg:
+        try:
+            from db import engine as _eng
+            await _eng.dispose()
+            logger.warning("Engine disposed after DB error — will reconnect on next request.")
+        except Exception:
+            pass
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"{type(exc).__name__}: {exc}"},
+    )
 
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
