@@ -20,8 +20,8 @@ export default function Register() {
       const u = await register({ ...form, access_code: form.access_code.toUpperCase().trim() });
       const dest =
         u.role === "super_admin" ? "/dashboard/super-admin" :
-        u.role === "admin" ? "/dashboard/admin" :
-        "/dashboard/student";
+        u.role === "student" ? "/dashboard/student" :
+        "/dashboard/admin";
       nav(dest, { replace: true });
     } catch (e) {
       setErr(formatApiError(e));

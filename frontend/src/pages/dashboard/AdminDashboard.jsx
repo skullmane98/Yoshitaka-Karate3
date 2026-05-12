@@ -8,10 +8,14 @@ import IDCard from "@/components/IDCard";
 import { getEditorForSlug } from "@/components/CMSEditors";
 import AttendancePanel from "@/components/AttendancePanel";
 import { BELT_NAMES } from "@/lib/belts";
+import NotificationsPanel from "@/components/NotificationsPanel";
+import BlogPanel from "@/components/BlogPanel";
+import PermissionsPanel from "@/components/PermissionsPanel";
+import PaymentCalendar from "@/components/PaymentCalendar";
 
 const ROLES_FOR = {
   admin: ["student"],
-  super_admin: ["student", "admin"],
+  super_admin: ["student", "admin", "renshi", "sensei", "team_member"],
 };
 
 export default function AdminDashboard({ isSuper = false }) {
@@ -34,10 +38,8 @@ export default function AdminDashboard({ isSuper = false }) {
       api.get("/stats").catch(() => ({ data: null })),
     ]);
     setUsers(u.data); setCodes(c.data); setPayments(p.data); setStats(s.data);
-    if (isSuper) {
-      const pg = await api.get("/cms/pages").catch(() => ({ data: [] }));
-      setPages(pg.data);
-    }
+    const pg = await api.get("/cms/pages").catch(() => ({ data: [] }));
+    setPages(pg.data);
   };
 
   useEffect(() => { reload(); }, []);
@@ -49,7 +51,10 @@ export default function AdminDashboard({ isSuper = false }) {
         { id: "codes", label: "Access Codes" },
         { id: "payments", label: "Payments" },
         { id: "attendance", label: "Attendance" },
+        { id: "notify", label: "Notify" },
+        { id: "blog", label: "Blog" },
         { id: "cms", label: "CMS" },
+        { id: "permissions", label: "Permissions" },
       ]
     : [
         { id: "overview", label: "Overview" },
@@ -57,6 +62,8 @@ export default function AdminDashboard({ isSuper = false }) {
         { id: "codes", label: "Access Codes" },
         { id: "payments", label: "Payments" },
         { id: "attendance", label: "Attendance" },
+        { id: "notify", label: "Notify" },
+        { id: "blog", label: "Blog" },
         { id: "idcard", label: "ID Card" },
       ];
 
@@ -121,10 +128,19 @@ export default function AdminDashboard({ isSuper = false }) {
       )}
 
       {tab === "payments" && (
-        <PaymentsPanel payments={payments} onReload={reload} users={users} onNew={(u) => setPayFor(u)} />
+        <div className="space-y-6">
+          <PaymentCalendar payments={payments} />
+          <PaymentsPanel payments={payments} onReload={reload} users={users} onNew={(u) => setPayFor(u)} />
+        </div>
       )}
 
       {tab === "attendance" && <AttendancePanel />}
+
+      {tab === "notify" && <NotificationsPanel />}
+
+      {tab === "blog" && <BlogPanel />}
+
+      {tab === "permissions" && isSuper && <PermissionsPanel />}
 
       {tab === "cms" && isSuper && (
         <CMSPanel pages={pages} onEdit={setEditingPage} />
@@ -480,6 +496,9 @@ function EditUserModal({ user, isSuper, onClose, onSaved }) {
               data-testid="edit-user-role"
             >
               <option value="student">Student</option>
+              <option value="team_member">Team Member</option>
+              <option value="sensei">Sensei</option>
+              <option value="renshi">Renshi</option>
               <option value="admin">Admin</option>
               <option value="super_admin">Super Admin</option>
             </select>

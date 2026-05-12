@@ -1176,14 +1176,13 @@ async def update_cms_page(
     current: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
 ):
-    # ID card design is a shared admin/super_admin concern.
-    # All other public pages stay super_admin only.
+    from features import _user_has_permission  # local to avoid circular import
     if slug == "idcard":
-        if current.role not in ("admin", "super_admin"):
-            raise HTTPException(status_code=403, detail="Insufficient privileges")
+        if not await _user_has_permission(session, current, "cms.edit_idcard"):
+            raise HTTPException(status_code=403, detail="Missing permission: cms.edit_idcard")
     else:
-        if current.role != "super_admin":
-            raise HTTPException(status_code=403, detail="Insufficient privileges")
+        if not await _user_has_permission(session, current, "cms.edit_public"):
+            raise HTTPException(status_code=403, detail="Missing permission: cms.edit_public")
     res = await session.execute(select(CMSPage).where(CMSPage.slug == slug))
     p = res.scalar_one_or_none()
     now = _strip_tz(datetime.now(timezone.utc))
@@ -1328,6 +1327,10 @@ app.include_router(api_router)
 # Social sign-in (Google + Microsoft)
 from oauth import oauth_router  # noqa: E402
 app.include_router(oauth_router)
+
+# Permissions, notifications, blog
+from features import features_router  # noqa: E402
+app.include_router(features_router)
 
 
 _cors_origins = [o.strip() for o in os.environ.get('CORS_ORIGINS', '*').split(',') if o.strip()]

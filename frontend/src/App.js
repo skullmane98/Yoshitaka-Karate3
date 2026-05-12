@@ -17,6 +17,7 @@ import ForgotPassword from "@/pages/ForgotPassword";
 import ResetPassword from "@/pages/ResetPassword";
 import OAuthComplete from "@/pages/OAuthComplete";
 import OAuthDone from "@/pages/OAuthDone";
+import { BlogList, BlogPost } from "@/pages/Blog";
 import StudentDashboard from "@/pages/dashboard/StudentDashboard";
 import AdminDashboard from "@/pages/dashboard/AdminDashboard";
 import SuperAdminDashboard from "@/pages/dashboard/SuperAdminDashboard";
@@ -51,6 +52,8 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/oauth/complete" element={<OAuthComplete />} />
           <Route path="/oauth/done" element={<OAuthDone />} />
+          <Route path="/blog" element={<BlogList />} />
+          <Route path="/blog/:slug" element={<BlogPost />} />
 
           <Route
             path="/dashboard/student"
@@ -63,7 +66,7 @@ export default function App() {
           <Route
             path="/dashboard/admin"
             element={
-              <ProtectedRoute roles={["admin"]}>
+              <ProtectedRoute roles={["admin", "renshi", "sensei", "team_member"]}>
                 <AdminDashboard />
               </ProtectedRoute>
             }

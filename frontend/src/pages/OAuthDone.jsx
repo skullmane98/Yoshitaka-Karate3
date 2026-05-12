@@ -26,8 +26,8 @@ export default function OAuthDone() {
         setUser(data);
         const dest =
           data.role === "super_admin" ? "/dashboard/super-admin" :
-          data.role === "admin" ? "/dashboard/admin" :
-          "/dashboard/student";
+          data.role === "student" ? "/dashboard/student" :
+          "/dashboard/admin";
         nav(dest, { replace: true });
       } catch {
         nav("/login?oauth_error=token_invalid", { replace: true });

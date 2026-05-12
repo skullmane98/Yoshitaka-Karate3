@@ -52,6 +52,10 @@ async def init_db() -> None:
         Attendance,
         CMSPage,
         PasswordResetToken,
+        RolePermission,
+        UserPermissionOverride,
+        Notification,
+        BlogPost,
     )
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)

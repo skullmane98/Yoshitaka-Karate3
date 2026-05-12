@@ -4,12 +4,14 @@ import { useAuth } from "@/context/AuthContext";
 import { Menu, X } from "lucide-react";
 import { LOGO_URL } from "@/lib/brand";
 import ThemeToggle from "@/components/ThemeToggle";
+import NotificationBell from "@/components/NotificationBell";
 
 const NAV = [
   { to: "/", label: "Home" },
   { to: "/about", label: "Sensei" },
   { to: "/programs", label: "Programs" },
   { to: "/schedule", label: "Schedule" },
+  { to: "/blog", label: "Blog" },
   { to: "/news", label: "News" },
   { to: "/contact", label: "Contact" },
 ];
@@ -21,8 +23,8 @@ export default function Navbar() {
 
   const dashHref =
     user?.role === "super_admin" ? "/dashboard/super-admin" :
-    user?.role === "admin" ? "/dashboard/admin" :
-    user?.role === "student" ? "/dashboard/student" : "/login";
+    user?.role === "student" ? "/dashboard/student" :
+    user ? "/dashboard/admin" : "/login";
 
   return (
     <header
@@ -59,6 +61,7 @@ export default function Navbar() {
 
         <div className="hidden lg:flex items-center gap-3">
           <ThemeToggle compact />
+          {user && <NotificationBell />}
           {user ? (
             <>
               <Link to={dashHref} className="btn-outline" data-testid="nav-dashboard-btn">

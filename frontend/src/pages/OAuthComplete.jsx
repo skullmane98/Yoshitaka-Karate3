@@ -36,8 +36,8 @@ export default function OAuthComplete() {
       setUser(data);
       const dest =
         data.role === "super_admin" ? "/dashboard/super-admin" :
-        data.role === "admin" ? "/dashboard/admin" :
-        "/dashboard/student";
+        data.role === "student" ? "/dashboard/student" :
+        "/dashboard/admin";
       nav(dest, { replace: true });
     } catch (e2) {
       setErr(formatApiError(e2));

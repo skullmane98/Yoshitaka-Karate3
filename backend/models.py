@@ -134,3 +134,72 @@ class PasswordResetToken(SQLModel, table=True):
         default_factory=_utcnow,
         sa_column=Column(DateTime(timezone=False), nullable=False),
     )
+
+
+# ---------------------------------------------------------------------------
+# Permissions
+# ---------------------------------------------------------------------------
+class RolePermission(SQLModel, table=True):
+    """Per-role overrides of the default permission set."""
+    __tablename__ = "role_permissions"
+
+    id: str = Field(primary_key=True, max_length=36)
+    role: str = Field(index=True, max_length=32)
+    permission_key: str = Field(max_length=64)
+    allowed: bool = Field(default=True)
+
+
+class UserPermissionOverride(SQLModel, table=True):
+    """Per-user overrides on top of role defaults."""
+    __tablename__ = "user_permission_overrides"
+
+    id: str = Field(primary_key=True, max_length=36)
+    user_id: str = Field(index=True, max_length=36)
+    permission_key: str = Field(max_length=64)
+    allowed: bool = Field(default=True)
+
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+class Notification(SQLModel, table=True):
+    __tablename__ = "notifications"
+
+    id: str = Field(primary_key=True, max_length=36)
+    user_id: str = Field(index=True, max_length=36)  # recipient, or "" for broadcast
+    sender_id: str = Field(max_length=36)
+    sender_name: str = Field(max_length=255)
+    title: str = Field(max_length=255)
+    body: str = Field(sa_column=Column(Text))
+    link: Optional[str] = Field(default=None, max_length=512)
+    read: bool = Field(default=False)
+    created_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(DateTime(timezone=False), nullable=False, index=True),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Blog
+# ---------------------------------------------------------------------------
+class BlogPost(SQLModel, table=True):
+    __tablename__ = "blog_posts"
+
+    id: str = Field(primary_key=True, max_length=36)
+    slug: str = Field(unique=True, max_length=128, index=True)
+    title: str = Field(max_length=255)
+    excerpt: Optional[str] = Field(default=None, sa_column=Column(Text))
+    body: str = Field(sa_column=Column(Text))  # rich-text / markdown
+    cover_image: Optional[str] = Field(default=None, sa_column=Column(Text))  # base64 or URL
+    images: list = Field(default_factory=list, sa_column=Column(JSON))  # extra inline images
+    author_id: str = Field(max_length=36)
+    author_name: str = Field(max_length=255)
+    published: bool = Field(default=True)
+    created_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(DateTime(timezone=False), nullable=False, index=True),
+    )
+    updated_at: datetime = Field(
+        default_factory=_utcnow,
+        sa_column=Column(DateTime(timezone=False), nullable=False),
+    )

@@ -97,11 +97,11 @@ export default function IDCard({ user }) {
 
   return (
     <div className="space-y-4">
-      <div ref={cardRef} className="id-card p-8 md:p-10 relative" data-testid="id-card">
+      <div ref={cardRef} className="id-card p-8 md:p-10 relative overflow-hidden" data-testid="id-card">
         {/* Optional background watermark */}
         {design.background_url && (
           <div
-            className="absolute inset-0 opacity-15 pointer-events-none"
+            className="absolute inset-0 opacity-40 pointer-events-none"
             style={bgStyle}
             aria-hidden
           />
@@ -129,7 +129,7 @@ export default function IDCard({ user }) {
 
           <div className="brush-divider mb-6" />
 
-          <div className="grid md:grid-cols-[1fr_auto] gap-8 items-center">
+          <div className="grid grid-cols-[1fr_auto] gap-6 sm:gap-8 items-center">
             <div className="space-y-4">
               <div>
                 <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.name_label}</div>

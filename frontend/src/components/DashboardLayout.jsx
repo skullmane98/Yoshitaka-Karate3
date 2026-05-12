@@ -2,6 +2,7 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { LogOut, Home } from "lucide-react";
 import ThemeToggle from "@/components/ThemeToggle";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function DashboardLayout({ title, subtitle, nav, children }) {
   const { user, logout } = useAuth();
@@ -9,7 +10,7 @@ export default function DashboardLayout({ title, subtitle, nav, children }) {
 
   return (
     <div className="min-h-screen paper-texture flex flex-col">
-      <header className="border-b border-[var(--dojo-border)]" style={{ background: "rgba(247, 245, 240, 0.9)" }}>
+      <header className="border-b border-[var(--dojo-border)] backdrop-blur-xl" style={{ background: "var(--dojo-nav-bg)" }}>
         <div className="max-w-[1400px] mx-auto px-6 lg:px-10 py-5 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <span className="hinomaru-dot" />
@@ -25,6 +26,7 @@ export default function DashboardLayout({ title, subtitle, nav, children }) {
               <span className="uppercase tracking-widest">{user?.role?.replace("_", " ")}</span>
             </span>
             <ThemeToggle compact />
+            <NotificationBell />
             <button
               onClick={() => navigate("/")}
               className="p-2 border border-[var(--dojo-border)] hover:border-[var(--dojo-green)] hover:text-[var(--dojo-green)] transition-colors"

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import IDCard from "@/components/IDCard";
+import BeltIcon from "@/components/BeltIcon";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { getBelt, getNextBelt, getBeltProgress } from "@/lib/belts";
@@ -52,29 +53,21 @@ export default function StudentDashboard() {
             </div>
             <div className="px-6 py-6 grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-6 items-center">
               <div>
-                <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] mb-2">Current</div>
-                <div className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 border border-[var(--dojo-border)] shadow-sm"
-                    style={{ background: currentBelt.color }}
-                    aria-hidden
-                  />
+                <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] mb-3">Current</div>
+                <div className="flex items-center gap-4">
+                  <BeltIcon belt={currentBelt} size={56} />
                   <div className="font-serif text-xl tracking-tight">{currentBelt.name}</div>
                 </div>
               </div>
               <div className="text-[var(--dojo-ink-soft)] font-serif text-2xl text-center hidden sm:block">→</div>
               <div className="sm:text-right">
-                <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] mb-2">
+                <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] mb-3">
                   {nextBelt ? "Next" : "Pinnacle"}
                 </div>
                 {nextBelt ? (
-                  <div className="flex items-center gap-3 sm:justify-end">
-                    <div
-                      className="w-10 h-10 border border-[var(--dojo-border)] shadow-sm sm:order-2"
-                      style={{ background: nextBelt.color }}
-                      aria-hidden
-                    />
-                    <div className="font-serif text-xl tracking-tight sm:order-1">{nextBelt.name}</div>
+                  <div className="flex items-center gap-4 sm:justify-end">
+                    <BeltIcon belt={nextBelt} size={56} />
+                    <div className="font-serif text-xl tracking-tight">{nextBelt.name}</div>
                   </div>
                 ) : (
                   <div className="font-serif text-xl tracking-tight text-[var(--dojo-hinomaru)]">

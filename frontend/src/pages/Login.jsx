@@ -37,8 +37,8 @@ export default function Login() {
       const u = await login(email, password);
       const dest =
         u.role === "super_admin" ? "/dashboard/super-admin" :
-        u.role === "admin" ? "/dashboard/admin" :
-        "/dashboard/student";
+        u.role === "student" ? "/dashboard/student" :
+        "/dashboard/admin";
       nav(loc.state?.from || dest, { replace: true });
     } catch (e) {
       setErr(formatApiError(e));
