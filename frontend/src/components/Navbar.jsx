@@ -65,8 +65,8 @@ export default function Navbar() {
 
         <div className="hidden lg:flex items-center gap-3">
           {!isHome && <ThemeToggle compact />}
-          {!isHome && user && <NotificationBell />}
-          {!isHome && (user ? (
+          {user && <NotificationBell />}
+          {user ? (
             <>
               <Link to={dashHref} className="btn-outline" data-testid="nav-dashboard-btn">
                 Dashboard
@@ -81,25 +81,23 @@ export default function Navbar() {
             </>
           ) : (
             <Link to="/login" className="btn-primary" data-testid="nav-login-btn">Login</Link>
-          ))}
+          )}
         </div>
 
-        {!isHome && (
-          <button
-            className="lg:hidden p-2"
-            onClick={() => setOpen((o) => !o)}
-            data-testid="nav-mobile-toggle"
-            aria-label="toggle menu"
-          >
-            {open ? <X /> : <Menu />}
-          </button>
-        )}
+        <button
+          className="lg:hidden p-2"
+          onClick={() => setOpen((o) => !o)}
+          data-testid="nav-mobile-toggle"
+          aria-label="toggle menu"
+        >
+          {open ? <X /> : <Menu />}
+        </button>
       </div>
 
-      {!isHome && open && (
+      {open && (
         <div className="lg:hidden border-t border-[var(--dojo-border)] bg-[var(--dojo-paper)]" data-testid="nav-mobile-menu">
           <div className="px-6 py-6 flex flex-col gap-5">
-            {NAV.map((n) => (
+            {!isHome && NAV.map((n) => (
               <NavLink
                 key={n.to}
                 to={n.to}
