@@ -104,6 +104,15 @@ class UserPublic(BaseModel):
     member_number: str
     active: bool = True
     created_at: datetime
+    date_of_birth: Optional[str] = None
+    address: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    medical_notes: Optional[str] = None
+    notes: Optional[str] = None
+    photo_url: Optional[str] = None
+    idcard_template: Optional[str] = None
+    idcard_overrides: dict = {}
 
 
 class RegisterRequest(BaseModel):
@@ -115,7 +124,7 @@ class RegisterRequest(BaseModel):
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: str  # accepts email OR member_number OR username
     password: str
 
 
@@ -126,6 +135,32 @@ class UserUpdateRequest(BaseModel):
     active: Optional[bool] = None
     email: Optional[EmailStr] = None
     role: Optional[Role] = None
+    date_of_birth: Optional[str] = None
+    address: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    medical_notes: Optional[str] = None
+    notes: Optional[str] = None
+    photo_url: Optional[str] = None
+    idcard_template: Optional[str] = None
+    idcard_overrides: Optional[dict] = None
+
+
+class UserCreateRequest(BaseModel):
+    """Admin/super_admin manual user creation. No access code required."""
+    name: str
+    email: EmailStr
+    password: str = Field(min_length=6)
+    role: Role = "student"
+    phone: Optional[str] = None
+    belt_rank: Optional[str] = None
+    date_of_birth: Optional[str] = None
+    address: Optional[str] = None
+    emergency_contact_name: Optional[str] = None
+    emergency_contact_phone: Optional[str] = None
+    medical_notes: Optional[str] = None
+    notes: Optional[str] = None
+    photo_url: Optional[str] = None
 
 
 class PasswordChangeRequest(BaseModel):
@@ -243,6 +278,15 @@ def user_to_public(u: User) -> UserPublic:
         member_number=u.member_number,
         active=u.active,
         created_at=_as_utc(u.created_at),
+        date_of_birth=u.date_of_birth,
+        address=u.address,
+        emergency_contact_name=u.emergency_contact_name,
+        emergency_contact_phone=u.emergency_contact_phone,
+        medical_notes=u.medical_notes,
+        notes=u.notes,
+        photo_url=u.photo_url,
+        idcard_template=u.idcard_template,
+        idcard_overrides=u.idcard_overrides or {},
     )
 
 
@@ -455,16 +499,57 @@ async def me(user: User = Depends(get_current_user)):
 @api_router.get("/users", response_model=List[UserPublic])
 async def list_users(
     role: Optional[str] = None,
-    current: User = Depends(require_role("admin", "super_admin")),
+    current: User = Depends(require_role("admin", "super_admin", "renshi", "sensei", "team_member")),
     session: AsyncSession = Depends(get_session),
 ):
     stmt = select(User)
-    if current.role == "admin":
+    if current.role in ("renshi", "sensei", "team_member"):
         stmt = stmt.where(User.role == "student")
+    elif current.role == "admin":
+        stmt = stmt.where(User.role.in_(["student", "team_member", "sensei", "renshi"]))
     elif role:
         stmt = stmt.where(User.role == role)
     res = await session.execute(stmt)
     return [user_to_public(u) for u in res.scalars().all()]
+
+
+@api_router.post("/users", response_model=UserPublic)
+async def create_user_manual(
+    payload: UserCreateRequest,
+    current: User = Depends(require_role("admin", "super_admin")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Manual user creation by admin / super_admin. No access code required."""
+    email = payload.email.lower()
+    # Role authorization
+    if current.role == "admin" and payload.role in ("admin", "super_admin"):
+        raise HTTPException(status_code=403, detail="Admins cannot create admin-level users")
+    if await _get_user_by_email(session, email):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    user = User(
+        id=str(uuid.uuid4()),
+        email=email,
+        password_hash=hash_password(payload.password),
+        name=payload.name,
+        role=payload.role,
+        phone=payload.phone,
+        belt_rank=payload.belt_rank or ("White" if payload.role == "student" else None),
+        member_number=generate_member_number(),
+        active=True,
+        registered_with_code=None,
+        date_of_birth=payload.date_of_birth,
+        address=payload.address,
+        emergency_contact_name=payload.emergency_contact_name,
+        emergency_contact_phone=payload.emergency_contact_phone,
+        medical_notes=payload.medical_notes,
+        notes=payload.notes,
+        photo_url=payload.photo_url,
+        created_at=_strip_tz(datetime.now(timezone.utc)),
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user_to_public(user)
 
 
 @api_router.get("/users/{user_id}", response_model=UserPublic)
@@ -496,14 +581,23 @@ async def update_user(
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
 
+    PROFILE_FIELDS = {
+        "name", "phone", "belt_rank", "active", "email", "role",
+        "date_of_birth", "address", "emergency_contact_name", "emergency_contact_phone",
+        "medical_notes", "notes", "photo_url", "idcard_template", "idcard_overrides",
+    }
     if current.id == user_id:
-        allowed = {"name", "phone"}
+        allowed = {"name", "phone", "address", "emergency_contact_name", "emergency_contact_phone", "photo_url"}
     elif current.role == "super_admin":
-        allowed = {"name", "phone", "belt_rank", "active", "email", "role"}
+        allowed = PROFILE_FIELDS
     elif current.role == "admin":
+        if target.role not in ("student", "team_member", "sensei", "renshi"):
+            raise HTTPException(status_code=403, detail="Admins cannot edit other admins")
+        allowed = PROFILE_FIELDS - {"role", "email"}
+    elif current.role in ("renshi", "sensei"):
         if target.role != "student":
-            raise HTTPException(status_code=403, detail="Admins can only edit students")
-        allowed = {"name", "phone", "belt_rank", "active"}
+            raise HTTPException(status_code=403, detail="Forbidden")
+        allowed = {"name", "phone", "belt_rank", "address", "emergency_contact_name", "emergency_contact_phone", "medical_notes", "notes", "photo_url"}
     else:
         raise HTTPException(status_code=403, detail="Forbidden")
 

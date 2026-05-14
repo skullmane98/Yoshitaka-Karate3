@@ -28,7 +28,7 @@ export default function Footer() {
           <ul className="space-y-2 text-sm text-[var(--dojo-ink-soft)]">
             <li><Link to="/contact" className="ink-underline">Contact</Link></li>
             <li><Link to="/login" className="ink-underline">Student Login</Link></li>
-            <li><Link to="/register" className="ink-underline">Enroll with Code</Link></li>
+            <li><Link to="/login" className="ink-underline">Member Login</Link></li>
           </ul>
         </div>
       </div>

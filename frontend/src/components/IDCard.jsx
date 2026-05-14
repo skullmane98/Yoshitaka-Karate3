@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
 import { Loader2, Download } from "lucide-react";
 import { LOGO_URL } from "@/lib/brand";
+import { resolveIDCardDesign } from "@/lib/idcardTemplates";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -44,15 +45,14 @@ export default function IDCard({ user }) {
         ]);
         if (!active) return;
         if (qr.status === "fulfilled") setData(qr.value.data);
-        if (idcardPage.status === "fulfilled") {
-          setDesign({ ...DEFAULTS, ...(idcardPage.value.data?.content || {}) });
-        }
+        const globalCMS = idcardPage.status === "fulfilled" ? (idcardPage.value.data?.content || {}) : {};
+        setDesign({ ...DEFAULTS, ...resolveIDCardDesign(globalCMS, user) });
       } finally {
         if (active) setLoading(false);
       }
     })();
     return () => { active = false; };
-  }, [user?.id]);
+  }, [user?.id, user?.idcard_template, user?.idcard_overrides]);
 
   const exportPDF = async () => {
     if (!cardRef.current) return;

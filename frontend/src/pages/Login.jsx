@@ -3,10 +3,9 @@ import { Link, useNavigate, useLocation, useSearchParams } from "react-router-do
 import PublicLayout from "@/components/PublicLayout";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiError } from "@/lib/api";
-import OAuthButtons from "@/components/OAuthButtons";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(false);
@@ -34,7 +33,7 @@ export default function Login() {
     e.preventDefault();
     setErr(""); setLoading(true);
     try {
-      const u = await login(email, password);
+      const u = await login(username, password);
       const dest =
         u.role === "super_admin" ? "/dashboard/super-admin" :
         u.role === "student" ? "/dashboard/student" :
@@ -57,12 +56,13 @@ export default function Login() {
         </div>
         <form onSubmit={submit} className="space-y-5 border border-[var(--dojo-border)] bg-[var(--dojo-paper)] p-8">
           <div>
-            <label className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] block mb-2">Email</label>
+            <label className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] block mb-2">Username</label>
             <input
-              type="email"
+              type="text"
               required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               data-testid="login-email-input"
               className="w-full border border-[var(--dojo-border)] bg-[var(--dojo-input-bg)] px-4 py-3 focus:outline-none focus:border-[var(--dojo-ink)] transition-colors"
             />
@@ -72,6 +72,7 @@ export default function Login() {
             <input
               type="password"
               required
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               data-testid="login-password-input"
@@ -82,10 +83,8 @@ export default function Login() {
           <button type="submit" className="btn-primary w-full" disabled={loading} data-testid="login-submit-btn">
             {loading ? "Entering…" : "Enter Dojo"}
           </button>
-          <OAuthButtons />
-          <div className="flex justify-between text-sm text-[var(--dojo-ink-soft)] pt-2">
+          <div className="text-center text-sm text-[var(--dojo-ink-soft)] pt-2">
             <Link to="/forgot-password" className="ink-underline" data-testid="login-forgot-link">Forgot password?</Link>
-            <Link to="/register" className="ink-underline">Enroll</Link>
           </div>
         </form>
       </section>

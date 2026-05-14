@@ -42,7 +42,7 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Create tables if they don't exist. For production, swap to Alembic migrations."""
+    """Create tables if they don't exist + lightweight column migrations."""
     # Import models so SQLModel.metadata knows about them before create_all.
     from models import (  # noqa: F401
         User,
@@ -59,3 +59,32 @@ async def init_db() -> None:
     )
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+    # Add new columns to existing tables (idempotent — ignore "duplicate column")
+    await _migrate_add_columns()
+
+
+async def _migrate_add_columns() -> None:
+    """Lightweight per-column migration for already-deployed MySQL databases.
+
+    Adds new optional User columns without nuking existing data. Safe to run on
+    every boot — duplicate-column errors are swallowed.
+    """
+    from sqlalchemy import text
+    additions = [
+        ("users", "date_of_birth", "VARCHAR(32) NULL"),
+        ("users", "address", "TEXT NULL"),
+        ("users", "emergency_contact_name", "VARCHAR(255) NULL"),
+        ("users", "emergency_contact_phone", "VARCHAR(64) NULL"),
+        ("users", "medical_notes", "TEXT NULL"),
+        ("users", "notes", "TEXT NULL"),
+        ("users", "photo_url", "TEXT NULL"),
+        ("users", "idcard_template", "VARCHAR(32) NULL"),
+        ("users", "idcard_overrides", "JSON NULL"),
+    ]
+    async with engine.begin() as conn:
+        for table, col, spec in additions:
+            try:
+                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {spec}"))
+            except Exception:
+                # Column likely already exists — ignore.
+                pass

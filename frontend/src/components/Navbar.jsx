@@ -76,10 +76,7 @@ export default function Navbar() {
               </button>
             </>
           ) : (
-            <>
-              <Link to="/login" className="btn-outline" data-testid="nav-login-btn">Login</Link>
-              <Link to="/register" className="btn-primary" data-testid="nav-register-btn">Enroll</Link>
-            </>
+            <Link to="/login" className="btn-primary" data-testid="nav-login-btn">Login</Link>
           )}
         </div>
 
@@ -121,10 +118,7 @@ export default function Navbar() {
                   </button>
                 </>
               ) : (
-                <>
-                  <Link to="/login" className="btn-outline flex-1 text-center" onClick={() => setOpen(false)}>Login</Link>
-                  <Link to="/register" className="btn-primary flex-1 text-center" onClick={() => setOpen(false)}>Enroll</Link>
-                </>
+                <Link to="/login" className="btn-primary flex-1 text-center" onClick={() => setOpen(false)}>Login</Link>
               )}
             </div>
           </div>

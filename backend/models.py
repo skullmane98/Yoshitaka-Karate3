@@ -21,12 +21,23 @@ class User(SQLModel, table=True):
     email: str = Field(index=True, unique=True, max_length=255)
     password_hash: str = Field(max_length=255)
     name: str = Field(max_length=255)
-    role: str = Field(max_length=32)  # super_admin | admin | student
+    role: str = Field(max_length=32)  # super_admin | admin | renshi | sensei | team_member | student
     phone: Optional[str] = Field(default=None, max_length=64)
     belt_rank: Optional[str] = Field(default=None, max_length=64)
     member_number: str = Field(unique=True, max_length=32)
     active: bool = Field(default=True)
     registered_with_code: Optional[str] = Field(default=None, max_length=32)
+    # Extended profile information (manually entered by admins)
+    date_of_birth: Optional[str] = Field(default=None, max_length=32)
+    address: Optional[str] = Field(default=None, sa_column=Column(Text))
+    emergency_contact_name: Optional[str] = Field(default=None, max_length=255)
+    emergency_contact_phone: Optional[str] = Field(default=None, max_length=64)
+    medical_notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+    notes: Optional[str] = Field(default=None, sa_column=Column(Text))
+    photo_url: Optional[str] = Field(default=None, sa_column=Column(Text))
+    # Per-user ID card overrides (JSON of custom fields, template name)
+    idcard_template: Optional[str] = Field(default=None, max_length=32)  # student | team_class | sensei
+    idcard_overrides: dict = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(
         default_factory=_utcnow,
         sa_column=Column(DateTime(timezone=False), nullable=False),

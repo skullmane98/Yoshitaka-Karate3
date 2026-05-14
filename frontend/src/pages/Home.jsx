@@ -48,12 +48,12 @@ export default function Home() {
                 Explore Programs <ArrowRight size={14} className="inline ml-2" />
               </Link>
               <Link
-                to="/register"
+                to="/contact"
                 className="btn-outline"
                 style={{ color: "#FBFAF6", borderColor: "#FBFAF6" }}
-                data-testid="home-cta-enroll"
+                data-testid="home-cta-contact"
               >
-                Enroll Now
+                Contact Us
               </Link>
             </div>
           </motion.div>
@@ -125,11 +125,8 @@ export default function Home() {
             <h2 className="font-serif text-4xl md:text-5xl tracking-tight">Step onto the tatami.</h2>
           </div>
           <div className="flex gap-4">
-            <Link to="/contact" className="btn-outline" style={{ color: "var(--dojo-paper)", borderColor: "var(--dojo-paper)" }} data-testid="home-cta-contact">
+            <Link to="/contact" className="btn-outline" style={{ color: "var(--dojo-paper)", borderColor: "var(--dojo-paper)" }} data-testid="home-cta-visit">
               Visit Dojo
-            </Link>
-            <Link to="/register" className="btn-primary" data-testid="home-cta-register2">
-              Enroll
             </Link>
           </div>
         </div>
