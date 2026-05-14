@@ -3,7 +3,7 @@ import api, { formatApiError } from "@/lib/api";
 import IDCard from "@/components/IDCard";
 import { BELT_NAMES } from "@/lib/belts";
 import { IDCARD_TEMPLATES } from "@/lib/idcardTemplates";
-import { X, Save, KeyRound } from "lucide-react";
+import { X, Save, KeyRound, RefreshCcw } from "lucide-react";
 
 /**
  * Slide-out editor for a single user. 4 tabs:
@@ -20,13 +20,25 @@ const TABS = [
 
 export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
   const isSuper = currentUser?.role === "super_admin";
+  const isAdminLike = ["admin", "super_admin"].includes(currentUser?.role);
   const [tab, setTab] = useState("profile");
   const [draft, setDraft] = useState(user);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
   const [pw, setPw] = useState("");
+  const [qrPng, setQrPng] = useState("");
+  const [qrBusy, setQrBusy] = useState(false);
 
   useEffect(() => { setDraft(user); }, [user]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    api.get(`/users/${user.id}/qrcode`)
+      .then((r) => { if (active) setQrPng(r.data?.qr_png || ""); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [user?.id, user?.qr_code]);
 
   if (!user) return null;
 
@@ -43,6 +55,31 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
     const r = new FileReader();
     r.onload = () => set("photo_url", r.result);
     r.readAsDataURL(f);
+  };
+
+  const onBackground = (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 1.5 * 1024 * 1024) { alert("Background image must be under 1.5 MB"); return; }
+    const r = new FileReader();
+    r.onload = () => setOverride("background_url", r.result);
+    r.readAsDataURL(f);
+  };
+
+  const regenerateQR = async () => {
+    if (!window.confirm("Generate a new QR code for this user? Their existing printed/screen card will stop working.")) return;
+    setQrBusy(true);
+    setMsg("");
+    try {
+      const { data } = await api.post(`/users/${user.id}/qr/regenerate`);
+      setDraft((d) => ({ ...d, qr_code: data.qr_code }));
+      onSaved?.(data);
+      setMsg("QR code regenerated.");
+    } catch (e) {
+      setMsg(formatApiError(e));
+    } finally {
+      setQrBusy(false);
+    }
   };
 
   const save = async () => {
@@ -115,16 +152,26 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                 <Field label="Email"><input className="input" type="email" value={draft.email || ""} onChange={(e) => set("email", e.target.value)} disabled={!isSuper} data-testid="user-email-input" /></Field>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
+                <Field label="Username" hint="Lets the user log in without their email.">
+                  <input
+                    className="input"
+                    value={draft.username || ""}
+                    onChange={(e) => set("username", e.target.value.replace(/\s/g, "").toLowerCase())}
+                    placeholder="e.g. johnsmith"
+                    disabled={!isAdminLike && currentUser?.id !== user.id}
+                    data-testid="user-username-input"
+                  />
+                </Field>
                 <Field label="Phone"><input className="input" value={draft.phone || ""} onChange={(e) => set("phone", e.target.value)} /></Field>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
                 <Field label="Belt Rank">
                   <select className="input" value={draft.belt_rank || ""} onChange={(e) => set("belt_rank", e.target.value)} data-testid="user-belt-select">
                     <option value="">— None —</option>
                     {BELT_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </Field>
-              </div>
-              <div className="grid md:grid-cols-2 gap-4">
-                {isSuper && (
+                {isSuper ? (
                   <Field label="Role">
                     <select className="input" value={draft.role} onChange={(e) => set("role", e.target.value)} data-testid="user-role-select">
                       <option value="student">Student</option>
@@ -135,11 +182,11 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                       <option value="super_admin">Super Admin</option>
                     </select>
                   </Field>
-                )}
-                <Field label="Active">
-                  <label className="flex items-center gap-2 mt-2"><input type="checkbox" checked={!!draft.active} onChange={(e) => set("active", e.target.checked)} /> Account enabled</label>
-                </Field>
+                ) : <div />}
               </div>
+              <Field label="Active">
+                <label className="flex items-center gap-2 mt-2"><input type="checkbox" checked={!!draft.active} onChange={(e) => set("active", e.target.checked)} /> Account enabled</label>
+              </Field>
               <Field label="Profile Photo" hint="Optional. JPG/PNG under 1.2 MB.">
                 <div className="flex items-center gap-3">
                   {draft.photo_url && <img src={draft.photo_url} alt="" className="h-20 w-20 object-cover border border-[var(--dojo-border)]" />}
@@ -213,12 +260,68 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                       />
                     </div>
                   </Field>
+                  {isAdminLike && (
+                    <Field label="Background Image" hint="JPG/PNG under 1.5 MB. Stacks behind the certificate as a faded watermark.">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {(draft.idcard_overrides || {}).background_url && (
+                          <img
+                            src={(draft.idcard_overrides || {}).background_url}
+                            alt="Background preview"
+                            className="h-16 w-24 object-cover border border-[var(--dojo-border)]"
+                          />
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={onBackground}
+                          className="text-sm"
+                          data-testid="user-idcard-bg-upload"
+                        />
+                        {(draft.idcard_overrides || {}).background_url && (
+                          <button
+                            type="button"
+                            onClick={() => setOverride("background_url", "")}
+                            className="text-xs text-[var(--dojo-hinomaru)] underline"
+                          >Remove</button>
+                        )}
+                      </div>
+                    </Field>
+                  )}
                   <button
                     type="button"
                     onClick={() => set("idcard_overrides", {})}
                     className="text-xs text-[var(--dojo-hinomaru)] underline"
                     data-testid="idcard-clear-overrides"
                   >Clear all overrides</button>
+                </div>
+
+                {/* QR code management */}
+                <div className="border border-[var(--dojo-border)] p-4 space-y-3">
+                  <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">QR Code</div>
+                  <div className="flex items-center gap-4">
+                    {qrPng ? (
+                      <img src={qrPng} alt="QR code" className="w-24 h-24 border border-[var(--dojo-border)]" data-testid="user-qr-preview" />
+                    ) : (
+                      <div className="w-24 h-24 border border-dashed border-[var(--dojo-border)] flex items-center justify-center text-[10px] text-[var(--dojo-ink-soft)]">Loading…</div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">Code</div>
+                      <div className="font-mono-accent text-xs break-all" data-testid="user-qr-value">{draft.qr_code || "—"}</div>
+                      <button
+                        type="button"
+                        onClick={regenerateQR}
+                        disabled={qrBusy}
+                        className="btn-outline mt-3 inline-flex items-center gap-2 text-xs"
+                        data-testid="user-qr-regenerate"
+                      >
+                        <RefreshCcw size={12} className={qrBusy ? "animate-spin" : ""} />
+                        {qrBusy ? "Rotating…" : "Regenerate QR"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-[var(--dojo-ink-soft)]">
+                    Rotating the QR invalidates any previously printed cards for this user.
+                  </div>
                 </div>
               </div>
               <div>

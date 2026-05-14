@@ -80,6 +80,8 @@ async def _migrate_add_columns() -> None:
         ("users", "photo_url", "TEXT NULL"),
         ("users", "idcard_template", "VARCHAR(32) NULL"),
         ("users", "idcard_overrides", "JSON NULL"),
+        ("users", "username", "VARCHAR(64) NULL"),
+        ("users", "qr_code", "VARCHAR(64) NULL"),
     ]
     async with engine.begin() as conn:
         for table, col, spec in additions:
@@ -87,4 +89,13 @@ async def _migrate_add_columns() -> None:
                 await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {spec}"))
             except Exception:
                 # Column likely already exists — ignore.
+                pass
+        # Unique indexes (idempotent — duplicate errors ignored)
+        for stmt in (
+            "CREATE UNIQUE INDEX ix_users_username ON users (username)",
+            "CREATE UNIQUE INDEX ix_users_qr_code ON users (qr_code)",
+        ):
+            try:
+                await conn.execute(text(stmt))
+            except Exception:
                 pass

@@ -19,12 +19,14 @@ class User(SQLModel, table=True):
 
     id: str = Field(primary_key=True, max_length=36)
     email: str = Field(index=True, unique=True, max_length=255)
+    username: Optional[str] = Field(default=None, max_length=64, index=True, unique=True)
     password_hash: str = Field(max_length=255)
     name: str = Field(max_length=255)
     role: str = Field(max_length=32)  # super_admin | admin | renshi | sensei | team_member | student
     phone: Optional[str] = Field(default=None, max_length=64)
     belt_rank: Optional[str] = Field(default=None, max_length=64)
     member_number: str = Field(unique=True, max_length=32)
+    qr_code: Optional[str] = Field(default=None, max_length=64, unique=True, index=True)
     active: bool = Field(default=True)
     registered_with_code: Optional[str] = Field(default=None, max_length=32)
     # Extended profile information (manually entered by admins)

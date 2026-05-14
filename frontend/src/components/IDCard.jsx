@@ -152,16 +152,6 @@ export default function IDCard({ user }) {
                   {user.member_number}
                 </div>
               </div>
-              {data?.barcode_png && (
-                <div className="pt-2">
-                  <img
-                    src={data.barcode_png}
-                    alt="Member barcode"
-                    className="h-14 w-auto"
-                    data-testid="idcard-barcode"
-                  />
-                </div>
-              )}
             </div>
 
             <div className="flex flex-col items-center gap-2">

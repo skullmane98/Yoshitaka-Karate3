@@ -56,7 +56,7 @@ export default function Login() {
         </div>
         <form onSubmit={submit} className="space-y-5 border border-[var(--dojo-border)] bg-[var(--dojo-paper)] p-8">
           <div>
-            <label className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] block mb-2">Username</label>
+            <label className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] block mb-2">Username or Email</label>
             <input
               type="text"
               required
@@ -64,6 +64,7 @@ export default function Login() {
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               data-testid="login-email-input"
+              placeholder="e.g. johnsmith or john@example.com"
               className="w-full border border-[var(--dojo-border)] bg-[var(--dojo-input-bg)] px-4 py-3 focus:outline-none focus:border-[var(--dojo-ink)] transition-colors"
             />
           </div>

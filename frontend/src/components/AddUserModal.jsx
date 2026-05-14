@@ -10,7 +10,7 @@ import { BELT_NAMES } from "@/lib/belts";
 export default function AddUserModal({ currentUser, onClose, onCreated }) {
   const isSuper = currentUser?.role === "super_admin";
   const [draft, setDraft] = useState({
-    name: "", email: "", password: "", role: "student",
+    name: "", email: "", username: "", password: "", role: "student",
     phone: "", belt_rank: "White",
     date_of_birth: "", address: "",
     emergency_contact_name: "", emergency_contact_phone: "",
@@ -34,7 +34,8 @@ export default function AddUserModal({ currentUser, onClose, onCreated }) {
     e.preventDefault();
     setBusy(true); setMsg("");
     try {
-      const { data } = await api.post("/users", draft);
+      const payload = { ...draft, username: draft.username.trim() || null };
+      const { data } = await api.post("/users", payload);
       onCreated?.(data);
       onClose();
     } catch (err) {
@@ -63,7 +64,12 @@ export default function AddUserModal({ currentUser, onClose, onCreated }) {
                 <Field label="Email *"><input className="input" type="email" required value={draft.email} onChange={(e) => set("email", e.target.value)} data-testid="newuser-email" /></Field>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
+                <Field label="Username" hint="Optional. Lets them log in without typing their email.">
+                  <input className="input" value={draft.username} onChange={(e) => set("username", e.target.value.replace(/\s/g, "").toLowerCase())} data-testid="newuser-username" placeholder="e.g. johnsmith" />
+                </Field>
                 <Field label="Starter Password *" hint="At least 6 chars. User can change later."><input className="input" type="text" required minLength={6} value={draft.password} onChange={(e) => set("password", e.target.value)} data-testid="newuser-pw" /></Field>
+              </div>
+              <div className="grid md:grid-cols-2 gap-4">
                 <Field label="Role">
                   <select className="input" value={draft.role} onChange={(e) => set("role", e.target.value)} data-testid="newuser-role">
                     <option value="student">Student</option>
@@ -74,14 +80,15 @@ export default function AddUserModal({ currentUser, onClose, onCreated }) {
                     {isSuper && <option value="super_admin">Super Admin</option>}
                   </select>
                 </Field>
+                <Field label="Phone"><input className="input" value={draft.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
               </div>
               <div className="grid md:grid-cols-2 gap-4">
-                <Field label="Phone"><input className="input" value={draft.phone} onChange={(e) => set("phone", e.target.value)} /></Field>
                 <Field label="Belt Rank">
                   <select className="input" value={draft.belt_rank} onChange={(e) => set("belt_rank", e.target.value)}>
                     {BELT_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </Field>
+                <div />
               </div>
             </Section>
 

@@ -97,11 +97,13 @@ Role = Literal["super_admin", "admin", "student"]
 class UserPublic(BaseModel):
     id: str
     email: EmailStr
+    username: Optional[str] = None
     name: str
     role: Role
     phone: Optional[str] = None
     belt_rank: Optional[str] = None
     member_number: str
+    qr_code: Optional[str] = None
     active: bool = True
     created_at: datetime
     date_of_birth: Optional[str] = None
@@ -130,6 +132,7 @@ class LoginRequest(BaseModel):
 
 class UserUpdateRequest(BaseModel):
     name: Optional[str] = None
+    username: Optional[str] = None
     phone: Optional[str] = None
     belt_rank: Optional[str] = None
     active: Optional[bool] = None
@@ -150,6 +153,7 @@ class UserCreateRequest(BaseModel):
     """Admin/super_admin manual user creation. No access code required."""
     name: str
     email: EmailStr
+    username: Optional[str] = None
     password: str = Field(min_length=6)
     role: Role = "student"
     phone: Optional[str] = None
@@ -271,11 +275,13 @@ def user_to_public(u: User) -> UserPublic:
     return UserPublic(
         id=u.id,
         email=u.email,
+        username=u.username,
         name=u.name,
         role=u.role,
         phone=u.phone,
         belt_rank=u.belt_rank,
         member_number=u.member_number,
+        qr_code=u.qr_code or u.member_number,
         active=u.active,
         created_at=_as_utc(u.created_at),
         date_of_birth=u.date_of_birth,
@@ -297,6 +303,27 @@ async def _get_user_by_id(session: AsyncSession, user_id: str) -> Optional[User]
 
 async def _get_user_by_email(session: AsyncSession, email: str) -> Optional[User]:
     res = await session.execute(select(User).where(User.email == email))
+    return res.scalar_one_or_none()
+
+
+async def _get_user_by_login(session: AsyncSession, identifier: str) -> Optional[User]:
+    """Resolve a login identifier — accepts email, username, or member_number (case-insensitive)."""
+    ident = identifier.strip()
+    if not ident:
+        return None
+    lowered = ident.lower()
+    # email
+    res = await session.execute(select(User).where(User.email == lowered))
+    user = res.scalar_one_or_none()
+    if user:
+        return user
+    # username (case-insensitive)
+    res = await session.execute(select(User).where(User.username == lowered))
+    user = res.scalar_one_or_none()
+    if user:
+        return user
+    # member_number (uppercase like YK12345678)
+    res = await session.execute(select(User).where(User.member_number == ident.upper()))
     return res.scalar_one_or_none()
 
 
@@ -349,6 +376,15 @@ def set_auth_cookie(response: Response, token: str):
 
 def generate_member_number() -> str:
     return "YK" + "".join(secrets.choice("0123456789") for _ in range(8))
+
+
+def _generate_qr_code(member_number: str) -> str:
+    """Unique, opaque QR code value for a user. Rotatable independently of member_number.
+
+    Format: YK-QR-{12-char base32}. Stored on the user and used as the QR payload."""
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    suffix = "".join(secrets.choice(alphabet) for _ in range(12))
+    return f"YK-QR-{suffix}"
 
 
 def generate_access_code() -> str:
@@ -415,10 +451,9 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_session),
 ):
-    email = payload.email.lower()
-    user = await _get_user_by_email(session, email)
+    user = await _get_user_by_login(session, payload.email)
     if not user or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid login or password")
     if not user.active:
         raise HTTPException(status_code=403, detail="Account disabled")
     token = create_access_token(user.id, user.email, user.role)
@@ -526,15 +561,23 @@ async def create_user_manual(
         raise HTTPException(status_code=403, detail="Admins cannot create admin-level users")
     if await _get_user_by_email(session, email):
         raise HTTPException(status_code=400, detail="Email already registered")
+    username = (payload.username or "").lower().strip() or None
+    if username:
+        res = await session.execute(select(User).where(User.username == username))
+        if res.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Username already taken")
+    member_number = generate_member_number()
     user = User(
         id=str(uuid.uuid4()),
         email=email,
+        username=username,
         password_hash=hash_password(payload.password),
         name=payload.name,
         role=payload.role,
         phone=payload.phone,
         belt_rank=payload.belt_rank or ("White" if payload.role == "student" else None),
-        member_number=generate_member_number(),
+        member_number=member_number,
+        qr_code=_generate_qr_code(member_number),
         active=True,
         registered_with_code=None,
         date_of_birth=payload.date_of_birth,
@@ -582,7 +625,7 @@ async def update_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     PROFILE_FIELDS = {
-        "name", "phone", "belt_rank", "active", "email", "role",
+        "name", "username", "phone", "belt_rank", "active", "email", "role",
         "date_of_birth", "address", "emergency_contact_name", "emergency_contact_phone",
         "medical_notes", "notes", "photo_url", "idcard_template", "idcard_overrides",
     }
@@ -610,6 +653,18 @@ async def update_user(
         )
         if other_res.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Email in use")
+
+    if "username" in data:
+        uname = (data["username"] or "").lower().strip()
+        if uname:
+            other_res = await session.execute(
+                select(User).where(User.username == uname, User.id != user_id)
+            )
+            if other_res.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="Username in use")
+            data["username"] = uname
+        else:
+            data["username"] = None
 
     if "role" in data and data["role"] != target.role:
         if target.role == "super_admin" and data["role"] != "super_admin":
@@ -699,24 +754,52 @@ async def user_qrcode(
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
 
-    payload = f"YOSHITAKA|{target.member_number}|{target.id}"
-    qr_img = qrcode.make(payload)
+    # Backfill qr_code on legacy users so the QR is unique + regenerable.
+    if not target.qr_code:
+        target.qr_code = _generate_qr_code(target.member_number)
+        session.add(target)
+        await session.commit()
+        await session.refresh(target)
+
+    payload = target.qr_code
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=qrcode.constants.ERROR_CORRECT_M,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(payload)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="#D7263D", back_color="white").convert("RGB")
     buf = io.BytesIO()
     qr_img.save(buf, format="PNG")
     data = base64.b64encode(buf.getvalue()).decode("utf-8")
 
-    Code128 = barcode.get_barcode_class("code128")
-    bc = Code128(target.member_number, writer=ImageWriter())
-    bc_buf = io.BytesIO()
-    bc.write(bc_buf, options={"write_text": False, "module_height": 12, "module_width": 0.3, "quiet_zone": 2})
-    bc_data = base64.b64encode(bc_buf.getvalue()).decode("utf-8")
-
     return {
         "member_number": target.member_number,
+        "qr_code": target.qr_code,
         "qr_payload": payload,
         "qr_png": f"data:image/png;base64,{data}",
-        "barcode_png": f"data:image/png;base64,{bc_data}",
     }
+
+
+@api_router.post("/users/{user_id}/qr/regenerate")
+async def regenerate_qr(
+    user_id: str,
+    current: User = Depends(require_role("admin", "super_admin", "renshi", "sensei")),
+    session: AsyncSession = Depends(get_session),
+):
+    """Rotate a user's QR-code value so any previously printed card stops working."""
+    target = await _get_user_by_id(session, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if current.role in ("renshi", "sensei") and target.role != "student":
+        raise HTTPException(status_code=403, detail="Forbidden")
+    target.qr_code = _generate_qr_code(target.member_number)
+    session.add(target)
+    await session.commit()
+    await session.refresh(target)
+    return user_to_public(target)
 
 
 # -----------------------------------------------------------------------------
@@ -1083,18 +1166,28 @@ async def attendance_scan(
     current: User = Depends(require_role("admin", "super_admin")),
     session: AsyncSession = Depends(get_session),
 ):
-    member_number = _parse_scan_code(payload.code)
-    if not member_number:
+    raw_code = (payload.code or "").strip()
+    if not raw_code:
         raise HTTPException(status_code=400, detail="Empty scan")
 
-    res = await session.execute(select(User).where(User.member_number == member_number))
+    # 1) Try the new opaque qr_code value (YK-QR-XXXX...)
+    user = None
+    res = await session.execute(select(User).where(User.qr_code == raw_code))
     user = res.scalar_one_or_none()
+
+    # 2) Fall back to legacy YOSHITAKA|...|... or raw member_number for old printed cards
     if not user:
-        raise HTTPException(status_code=404, detail=f"No member found for {member_number}")
+        member_number = _parse_scan_code(raw_code)
+        if member_number:
+            res = await session.execute(select(User).where(User.member_number == member_number))
+            user = res.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail=f"No member found for code {raw_code}")
     if not user.active:
         raise HTTPException(status_code=403, detail="Member is inactive")
 
-    method = "qr" if payload.code.upper().startswith("YOSHITAKA|") else "barcode"
+    method = "qr"
     rec = Attendance(
         id=str(uuid.uuid4()),
         user_id=user.id,

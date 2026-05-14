@@ -5,6 +5,7 @@ import BeltIcon from "@/components/BeltIcon";
 import api from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { getBelt, getNextBelt, getBeltProgress } from "@/lib/belts";
+import BlogReader from "@/components/BlogReader";
 
 function StatCard({ label, value, sub }) {
   return (
@@ -18,6 +19,7 @@ function StatCard({ label, value, sub }) {
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const [tab, setTab] = useState("overview");
   const [payments, setPayments] = useState([]);
   const [schedule, setSchedule] = useState([]);
 
@@ -33,8 +35,31 @@ export default function StudentDashboard() {
   const nextBelt = getNextBelt(user?.belt_rank);
   const progress = getBeltProgress(user?.belt_rank);
 
+  const TABS = [
+    { id: "overview", label: "Overview" },
+    { id: "blog", label: "Blog" },
+  ];
+
   return (
     <DashboardLayout title="Student Portal" subtitle={`Welcome, ${user?.name?.split(" ")[0] || "student"}.`}>
+      <div className="flex gap-2 mb-8 border-b border-[var(--dojo-border)] overflow-x-auto">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            data-testid={`tab-${t.id}`}
+            className={`px-5 py-3 text-[11px] uppercase tracking-[0.2em] border-b-2 whitespace-nowrap transition-colors ${
+              tab === t.id ? "border-[var(--dojo-green)] text-[var(--dojo-ink)]" : "border-transparent text-[var(--dojo-ink-soft)] hover:text-[var(--dojo-ink)]"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "blog" && <BlogReader />}
+
+      {tab === "overview" && (
       <div className="grid lg:grid-cols-12 gap-6">
         <div className="lg:col-span-7 space-y-6">
           <div className="grid grid-cols-3 gap-4">
@@ -138,6 +163,7 @@ export default function StudentDashboard() {
           </div>
         </div>
       </div>
+      )}
     </DashboardLayout>
   );
 }
