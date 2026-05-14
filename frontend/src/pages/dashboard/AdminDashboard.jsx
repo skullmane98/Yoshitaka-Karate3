@@ -7,11 +7,12 @@ import { toast } from "sonner";
 import IDCard from "@/components/IDCard";
 import { getEditorForSlug } from "@/components/CMSEditors";
 import AttendancePanel from "@/components/AttendancePanel";
-import { BELT_NAMES } from "@/lib/belts";
 import NotificationsPanel from "@/components/NotificationsPanel";
 import BlogPanel from "@/components/BlogPanel";
 import PermissionsPanel from "@/components/PermissionsPanel";
 import PaymentCalendar from "@/components/PaymentCalendar";
+import UserDrawer from "@/components/UserDrawer";
+import AddUserModal from "@/components/AddUserModal";
 
 const ROLES_FOR = {
   admin: ["student"],
@@ -27,6 +28,7 @@ export default function AdminDashboard({ isSuper = false }) {
   const [stats, setStats] = useState(null);
   const [pages, setPages] = useState([]);
   const [editingUser, setEditingUser] = useState(null);
+  const [addingUser, setAddingUser] = useState(false);
   const [payFor, setPayFor] = useState(null);
   const [editingPage, setEditingPage] = useState(null);
 
@@ -119,6 +121,7 @@ export default function AdminDashboard({ isSuper = false }) {
           onEdit={setEditingUser}
           onReload={reload}
           onBill={(u) => setPayFor(u)}
+          onAdd={() => setAddingUser(true)}
           isSuper={isSuper}
         />
       )}
@@ -171,7 +174,19 @@ export default function AdminDashboard({ isSuper = false }) {
       })()}
 
       {editingUser && (
-        <EditUserModal user={editingUser} isSuper={isSuper} onClose={() => setEditingUser(null)} onSaved={reload} />
+        <UserDrawer
+          user={editingUser}
+          currentUser={user}
+          onClose={() => setEditingUser(null)}
+          onSaved={(updated) => { setEditingUser(updated); reload(); }}
+        />
+      )}
+      {addingUser && (
+        <AddUserModal
+          currentUser={user}
+          onClose={() => setAddingUser(false)}
+          onCreated={() => { setAddingUser(false); toast.success("User created"); reload(); }}
+        />
       )}
       {payFor && (
         <NewPaymentModal user={payFor} onClose={() => setPayFor(null)} onSaved={reload} />
@@ -193,7 +208,7 @@ function Stat({ label, value, sub }) {
   );
 }
 
-function UsersPanel({ users, onEdit, onReload, onBill, isSuper }) {
+function UsersPanel({ users, onEdit, onReload, onBill, onAdd, isSuper }) {
   const del = async (u) => {
     if (!window.confirm(`Delete ${u.name}? This removes their payments too.`)) return;
     try { await api.delete(`/users/${u.id}`); toast.success("User deleted"); onReload(); }
@@ -203,7 +218,12 @@ function UsersPanel({ users, onEdit, onReload, onBill, isSuper }) {
     <div className="border border-[var(--dojo-border)] bg-[var(--dojo-paper)]" data-testid="users-panel">
       <div className="px-6 py-4 border-b border-[var(--dojo-border)] flex justify-between items-center">
         <h2 className="font-serif text-2xl">{isSuper ? "All Users" : "Students"}</h2>
-        <span className="text-xs text-[var(--dojo-ink-soft)]">{users.length} records</span>
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-[var(--dojo-ink-soft)]">{users.length} records</span>
+          <button onClick={onAdd} className="btn-primary flex items-center gap-2" data-testid="add-user-btn">
+            <Plus size={14} /> Add User
+          </button>
+        </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -448,91 +468,6 @@ function CMSPanel({ pages, onEdit }) {
         </div>
       ))}
     </div>
-  );
-}
-
-function EditUserModal({ user, isSuper, onClose, onSaved }) {
-  const { user: currentUser } = useAuth();
-  const isSelf = currentUser?.id === user.id;
-  const [form, setForm] = useState({
-    name: user.name || "",
-    phone: user.phone || "",
-    belt_rank: user.belt_rank || "",
-    email: user.email || "",
-    role: user.role,
-    active: user.active,
-  });
-  const [newPw, setNewPw] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const save = async (e) => {
-    e.preventDefault();
-    setBusy(true);
-    try {
-      const payload = { name: form.name, phone: form.phone, belt_rank: form.belt_rank, active: form.active };
-      if (isSuper) {
-        payload.email = form.email;
-        if (!isSelf && form.role !== user.role) payload.role = form.role;
-      }
-      await api.patch(`/users/${user.id}`, payload);
-      if (newPw) await api.post(`/users/${user.id}/password`, { new_password: newPw });
-      toast.success("User updated");
-      onSaved(); onClose();
-    } catch (e) { toast.error(formatApiError(e)); }
-    finally { setBusy(false); }
-  };
-
-  return (
-    <Modal title={`Edit ${user.name}`} onClose={onClose}>
-      <form onSubmit={save} className="space-y-4">
-        <Field label="Name"><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input" data-testid="edit-user-name" /></Field>
-        <Field label="Phone"><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className="input" data-testid="edit-user-phone" /></Field>
-        {isSuper && !isSelf && (
-          <Field label="Role / Access Level">
-            <select
-              value={form.role}
-              onChange={(e) => setForm({ ...form, role: e.target.value })}
-              className="input"
-              data-testid="edit-user-role"
-            >
-              <option value="student">Student</option>
-              <option value="team_member">Team Member</option>
-              <option value="sensei">Sensei</option>
-              <option value="renshi">Renshi</option>
-              <option value="admin">Admin</option>
-              <option value="super_admin">Super Admin</option>
-            </select>
-            {form.role !== user.role && (
-              <div className="text-[11px] text-[var(--dojo-hinomaru)] mt-1">
-                Changing role from <strong>{user.role.replace("_", " ")}</strong> to <strong>{form.role.replace("_", " ")}</strong>.
-              </div>
-            )}
-          </Field>
-        )}
-        {form.role === "student" && (
-          <Field label="Belt Rank">
-            <select value={form.belt_rank || ""} onChange={(e) => setForm({ ...form, belt_rank: e.target.value })} className="input" data-testid="edit-user-belt">
-              <option value="">—</option>
-              {BELT_NAMES.map((b) => <option key={b} value={b}>{b}</option>)}
-            </select>
-          </Field>
-        )}
-        {isSuper && <Field label="Email"><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="input" data-testid="edit-user-email" /></Field>}
-        <Field label="Status">
-          <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} data-testid="edit-user-active" />
-            Account active
-          </label>
-        </Field>
-        <Field label="Reset Password (optional)">
-          <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="Leave blank to keep" className="input" data-testid="edit-user-newpw" />
-        </Field>
-        <div className="flex gap-3 pt-2">
-          <button type="submit" className="btn-primary flex-1" disabled={busy} data-testid="edit-user-save">{busy ? "Saving…" : "Save"}</button>
-          <button type="button" className="btn-outline" onClick={onClose} data-testid="edit-user-cancel">Cancel</button>
-        </div>
-      </form>
-    </Modal>
   );
 }
 
