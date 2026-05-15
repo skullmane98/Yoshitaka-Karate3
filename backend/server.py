@@ -63,6 +63,9 @@ app = FastAPI(title="Yoshitaka Karate-Do CMS")
 api_router = APIRouter(prefix="/api")
 
 
+_BOOT_TIME = datetime.now(timezone.utc)
+
+
 # Lightweight readiness probe — used by the frontend to wake the Render
 # free-tier dyno (no DB call, returns instantly). Both `/api/health` (the
 # normal route) and `/health` (root) are exposed: Render serves both, and
@@ -75,6 +78,50 @@ async def api_health():
 @app.get("/health")
 async def root_health():
     return {"status": "ok", "service": "yoshitaka-karate-do"}
+
+
+# Deeper status probe — surfaces DB connectivity, dialect, uptime, keep-warm
+# config and user count. Powers the in-app `/#/status` debug page so issues
+# are visible without DevTools. Intentionally public (no auth) so an operator
+# can hit it even when login is broken.
+@api_router.get("/status")
+async def api_status(session: AsyncSession = Depends(get_session)):
+    from db import DATABASE_URL as _DB_URL, IS_SQLITE
+    db_ok, db_error, user_count = False, None, None
+    try:
+        from sqlalchemy import text as _sql_text
+        res = await session.execute(_sql_text("SELECT COUNT(*) FROM users"))
+        user_count = res.scalar_one()
+        db_ok = True
+    except Exception as e:  # pragma: no cover - reported via the response
+        db_error = f"{type(e).__name__}: {e}"
+    keep_warm_url = os.environ.get("KEEP_WARM_URL") or os.environ.get("APP_URL") or None
+    # Mask credentials in the connection string before exposing it.
+    safe_db_url = _DB_URL
+    if "@" in safe_db_url and "://" in safe_db_url:
+        scheme, rest = safe_db_url.split("://", 1)
+        if "@" in rest:
+            safe_db_url = f"{scheme}://***@{rest.split('@', 1)[1]}"
+    now = datetime.now(timezone.utc)
+    return {
+        "status": "ok" if db_ok else "degraded",
+        "service": "yoshitaka-karate-do",
+        "version": "1.0.0",
+        "server_time": now.isoformat(),
+        "boot_time": _BOOT_TIME.isoformat(),
+        "uptime_seconds": int((now - _BOOT_TIME).total_seconds()),
+        "database": {
+            "ok": db_ok,
+            "dialect": "sqlite" if IS_SQLITE else "mysql",
+            "url": safe_db_url,
+            "user_count": user_count,
+            "error": db_error,
+        },
+        "keep_warm": {
+            "enabled": bool(keep_warm_url),
+            "url": keep_warm_url,
+        },
+    }
 
 
 # Surface the real exception in Render logs (was silently returning 500).

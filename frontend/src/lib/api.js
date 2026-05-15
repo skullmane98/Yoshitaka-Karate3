@@ -5,6 +5,7 @@ import axios from "axios";
 // 404s in production. Normalise once at module load.
 const RAW = (process.env.REACT_APP_BACKEND_URL || "").trim();
 const BASE = RAW.replace(/\/+$/, "").replace(/\/api$/i, "");
+export const BACKEND_BASE_URL = BASE;
 
 const api = axios.create({
   baseURL: `${BASE}/api`,
@@ -38,6 +39,19 @@ api.interceptors.request.use((config) => {
 const RETRY_STATUSES = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
 const MAX_RETRIES = 5;
 
+// Lightweight metrics for the in-app `/status` page. Persists across page
+// navigations (module scope) but resets on a hard reload.
+export const apiMetrics = {
+  total_requests: 0,
+  total_retries: 0,
+  total_failures: 0,
+  last_status: null,
+  last_url: null,
+  last_attempts: 0,
+  last_error: null,
+  last_at: null,
+};
+
 function shouldRetry(error) {
   if (!error) return false;
   if (!error.response) return true; // network / timeout / DNS — likely cold start
@@ -50,14 +64,30 @@ function backoffDelay(attempt) {
 }
 
 api.interceptors.response.use(
-  (r) => r,
+  (r) => {
+    apiMetrics.total_requests += 1;
+    apiMetrics.last_status = r.status;
+    apiMetrics.last_url = `${r.config?.method?.toUpperCase()} ${r.config?.url}`;
+    apiMetrics.last_attempts = (r.config?.__yk_attempt || 0) + 1;
+    apiMetrics.last_error = null;
+    apiMetrics.last_at = new Date().toISOString();
+    return r;
+  },
   async (error) => {
     const cfg = error?.config;
     if (!cfg) return Promise.reject(error);
     cfg.__yk_attempt = (cfg.__yk_attempt || 0) + 1;
     if (cfg.__yk_attempt > MAX_RETRIES || !shouldRetry(error)) {
+      apiMetrics.total_requests += 1;
+      apiMetrics.total_failures += 1;
+      apiMetrics.last_status = error?.response?.status || 0;
+      apiMetrics.last_url = `${cfg.method?.toUpperCase()} ${cfg.url}`;
+      apiMetrics.last_attempts = cfg.__yk_attempt;
+      apiMetrics.last_error = error?.message || String(error);
+      apiMetrics.last_at = new Date().toISOString();
       return Promise.reject(error);
     }
+    apiMetrics.total_retries += 1;
     const wait = backoffDelay(cfg.__yk_attempt - 1);
     // eslint-disable-next-line no-console
     console.info(`[api] cold-start retry ${cfg.__yk_attempt}/${MAX_RETRIES} in ${wait}ms`);

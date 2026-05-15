@@ -20,6 +20,7 @@ import { BlogList, BlogPost } from "@/pages/Blog";
 import StudentDashboard from "@/pages/dashboard/StudentDashboard";
 import AdminDashboard from "@/pages/dashboard/AdminDashboard";
 import SuperAdminDashboard from "@/pages/dashboard/SuperAdminDashboard";
+import StatusPage from "@/pages/Status";
 
 export default function App() {
   return (
@@ -52,6 +53,7 @@ export default function App() {
           <Route path="/oauth/done" element={<OAuthDone />} />
           <Route path="/blog" element={<BlogList />} />
           <Route path="/blog/:slug" element={<BlogPost />} />
+          <Route path="/status" element={<StatusPage />} />
 
           <Route
             path="/dashboard/student"

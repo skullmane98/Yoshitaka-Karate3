@@ -101,8 +101,10 @@ export default function Login() {
           <button type="submit" className="btn-primary w-full" disabled={loading} data-testid="login-submit-btn">
             {loading ? (waking ? "Waking the dojo…" : "Entering…") : "Enter Dojo"}
           </button>
-          <div className="text-center text-sm text-[var(--dojo-ink-soft)] pt-2">
+          <div className="text-center text-sm text-[var(--dojo-ink-soft)] pt-2 flex items-center justify-center gap-4">
             <Link to="/forgot-password" className="ink-underline" data-testid="login-forgot-link">Forgot password?</Link>
+            <span className="text-[var(--dojo-border)]">·</span>
+            <Link to="/status" className="ink-underline" data-testid="login-status-link">System status</Link>
           </div>
         </form>
       </section>
