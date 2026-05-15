@@ -105,6 +105,15 @@ export default function IDCard({ user, defaultOrientation = "horizontal" }) {
     const prevTransform = transformParent?.style.transform || "";
     if (transformParent) transformParent.style.transform = "none";
     try {
+      // Ensure every web font has finished downloading + rendering. Without
+      // this, html2canvas snapshots a half-rendered font and shifts text up
+      // by the baseline difference → top half of every line gets clipped.
+      if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
+        await document.fonts.ready;
+      }
+      // Extra grace period so any font fallback substitution settles.
+      await new Promise((r) => setTimeout(r, 120));
+
       const canvas = await html2canvas(cardRef.current, {
         scale: 4,
         backgroundColor: "#FFFFFF",
@@ -117,6 +126,33 @@ export default function IDCard({ user, defaultOrientation = "horizontal" }) {
         height: cardRef.current.offsetHeight,
         windowWidth: cardRef.current.offsetWidth,
         windowHeight: cardRef.current.offsetHeight,
+        // CRITICAL — inside the cloned document used by html2canvas, replace
+        // every web font with a system font whose metrics it can measure
+        // reliably. Without this the custom serif/sans get clipped uniformly
+        // because html2canvas falls back to a font with different baselines.
+        // The visible preview keeps the original fonts; only the snapshot is
+        // affected.
+        onclone: (clonedDoc) => {
+          const style = clonedDoc.createElement("style");
+          style.textContent = `
+            .id-card, .id-card * {
+              font-family: Georgia, "Times New Roman", serif !important;
+            }
+            .id-card .font-kanji {
+              font-family: "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif !important;
+            }
+            .id-card .font-mono-accent,
+            .id-card [class*="font-mono"] {
+              font-family: "Courier New", "Lucida Console", monospace !important;
+            }
+            /* Belt-and-suspenders: every text node inside the card gets
+               enough padding-bottom so descenders are never clipped. */
+            .id-card div, .id-card span {
+              padding-bottom: 1px;
+            }
+          `;
+          clonedDoc.head.appendChild(style);
+        },
       });
       const imgData = canvas.toDataURL("image/png");
       const isV = orientation === "vertical";
