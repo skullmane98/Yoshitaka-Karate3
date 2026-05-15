@@ -285,9 +285,9 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                   <div className="border-t border-dashed border-[var(--dojo-border)] pt-3 mt-1 space-y-3" data-testid="user-idcard-sizes">
                     <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">Photo & QR Size</div>
                     {[
-                      ["photo_size", "Student Photo", 100],
-                      ["qr_size", "QR Code", 100],
-                    ].map(([key, label]) => {
+                      ["photo_size", "Student Photo", 100, 300],
+                      ["qr_size", "QR Code", 100, 200],
+                    ].map(([key, label, , maxPct]) => {
                       const cur = (draft.idcard_overrides || {})[key];
                       const pct = Math.round(((cur ?? 1)) * 100);
                       return (
@@ -296,7 +296,7 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                           <input
                             type="range"
                             min="25"
-                            max="200"
+                            max={maxPct}
                             step="5"
                             value={pct}
                             onChange={(e) => setOverride(key, Number(e.target.value) / 100)}
