@@ -263,6 +263,22 @@ const DEFAULT_FONT_SIZES = {
   kanji_bottom: 16,
 };
 
+// Curated font-size presets that overwrite all sizes at once.
+export const FONT_SIZE_PRESETS = {
+  compact: {
+    label: "Compact",
+    sizes: { dojo_name: 8, certificate_title: 16, kanji_top: 20, member_name: 16, role_value: 10, rank_value: 10, member_number: 12, field_label: 8, scan_text: 8, issued_text: 8, kanji_bottom: 12 },
+  },
+  standard: {
+    label: "Standard",
+    sizes: { ...DEFAULT_FONT_SIZES },
+  },
+  large_print: {
+    label: "Large-print",
+    sizes: { dojo_name: 12, certificate_title: 26, kanji_top: 32, member_name: 28, role_value: 16, rank_value: 16, member_number: 18, field_label: 12, scan_text: 11, issued_text: 12, kanji_bottom: 22 },
+  },
+};
+
 function pxOf(design, key) {
   const sizes = design?.font_sizes || {};
   const raw = sizes[key];
@@ -271,7 +287,20 @@ function pxOf(design, key) {
   return `${DEFAULT_FONT_SIZES[key]}px`;
 }
 
+// Multiplier between 25% and 200% for photo / QR resize sliders.
+function scaleOf(design, key, fallback = 1) {
+  const raw = design?.[key];
+  const n = Number(raw);
+  if (Number.isFinite(n) && n >= 0.25 && n <= 2) return n;
+  return fallback;
+}
+
 function HorizontalLayout({ user, design, data, loading, logoSrc }) {
+  const photoScale = scaleOf(design, "photo_size");
+  const qrScale = scaleOf(design, "qr_size");
+  const photoW = Math.round(110 * photoScale);
+  const photoH = Math.round(138 * photoScale);
+  const qrSide = Math.round(128 * qrScale);
   return (
     <div className="relative h-full flex flex-col">
       <div className="flex items-start justify-between mb-3 gap-3">
@@ -298,7 +327,7 @@ function HorizontalLayout({ user, design, data, loading, logoSrc }) {
         {user.photo_url ? (
           <div
             className="border border-[var(--dojo-border)] bg-white shrink-0 self-center"
-            style={{ width: 110, height: 138 }}
+            style={{ width: photoW, height: photoH }}
             data-testid="idcard-photo"
           >
             <img src={user.photo_url} alt="Member" className="w-full h-full object-cover" />
@@ -306,7 +335,7 @@ function HorizontalLayout({ user, design, data, loading, logoSrc }) {
         ) : (
           <div
             className="border border-dashed border-[var(--dojo-border)] bg-white shrink-0 self-center flex items-center justify-center text-[8px] uppercase tracking-[0.2em] text-[var(--dojo-ink-soft)] text-center px-2"
-            style={{ width: 110, height: 138 }}
+            style={{ width: photoW, height: photoH }}
           >
             No Photo
           </div>
@@ -340,11 +369,11 @@ function HorizontalLayout({ user, design, data, loading, logoSrc }) {
         <div className="flex flex-col items-center gap-1 shrink-0 self-center">
           <div className="p-1.5 bg-white border border-[var(--dojo-border)]">
             {loading || !data ? (
-              <div className="w-32 h-32 flex items-center justify-center">
+              <div className="flex items-center justify-center" style={{ width: qrSide, height: qrSide }}>
                 <Loader2 className="animate-spin text-[var(--dojo-ink-soft)]" />
               </div>
             ) : (
-              <img src={data.qr_png} alt="QR" className="w-32 h-32" data-testid="idcard-qr" />
+              <img src={data.qr_png} alt="QR" style={{ width: qrSide, height: qrSide }} data-testid="idcard-qr" />
             )}
           </div>
           <div className="uppercase tracking-[0.3em] text-[var(--dojo-ink-soft)]" style={{ fontSize: pxOf(design, "scan_text") }}>
@@ -365,6 +394,11 @@ function HorizontalLayout({ user, design, data, loading, logoSrc }) {
 }
 
 function VerticalLayout({ user, design, data, loading, logoSrc }) {
+  const photoScale = scaleOf(design, "photo_size");
+  const qrScale = scaleOf(design, "qr_size");
+  const photoW = Math.round(90 * photoScale);
+  const photoH = Math.round(110 * photoScale);
+  const qrSide = Math.round(112 * qrScale);
   return (
     <div className="relative h-full flex flex-col items-center text-center">
       <img src={logoSrc} alt="" className="h-14 w-14 object-contain mb-1" />
@@ -381,7 +415,7 @@ function VerticalLayout({ user, design, data, loading, logoSrc }) {
         {user.photo_url ? (
           <div
             className="border border-[var(--dojo-border)] bg-white shrink-0"
-            style={{ width: 90, height: 110 }}
+            style={{ width: photoW, height: photoH }}
             data-testid="idcard-photo"
           >
             <img src={user.photo_url} alt="Member" className="w-full h-full object-cover" />
@@ -389,18 +423,18 @@ function VerticalLayout({ user, design, data, loading, logoSrc }) {
         ) : (
           <div
             className="border border-dashed border-[var(--dojo-border)] bg-white shrink-0 flex items-center justify-center text-[8px] uppercase tracking-[0.2em] text-[var(--dojo-ink-soft)] text-center px-1"
-            style={{ width: 90, height: 110 }}
+            style={{ width: photoW, height: photoH }}
           >
             No Photo
           </div>
         )}
         <div className="p-1.5 bg-white border border-[var(--dojo-border)]">
           {loading || !data ? (
-            <div className="w-28 h-28 flex items-center justify-center">
+            <div className="flex items-center justify-center" style={{ width: qrSide, height: qrSide }}>
               <Loader2 className="animate-spin text-[var(--dojo-ink-soft)]" />
             </div>
           ) : (
-            <img src={data.qr_png} alt="QR" className="w-28 h-28" data-testid="idcard-qr" />
+            <img src={data.qr_png} alt="QR" style={{ width: qrSide, height: qrSide }} data-testid="idcard-qr" />
           )}
         </div>
       </div>

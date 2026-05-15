@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import api, { formatApiError } from "@/lib/api";
-import IDCard from "@/components/IDCard";
+import IDCard, { FONT_SIZE_PRESETS } from "@/components/IDCard";
 import { BELT_NAMES } from "@/lib/belts";
 import { IDCARD_TEMPLATES } from "@/lib/idcardTemplates";
 import { X, Save, KeyRound, RefreshCcw } from "lucide-react";
@@ -281,27 +281,88 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                     </div>
                   </Field>
 
+                  {/* Photo + QR size sliders */}
+                  <div className="border-t border-dashed border-[var(--dojo-border)] pt-3 mt-1 space-y-3" data-testid="user-idcard-sizes">
+                    <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">Photo & QR Size</div>
+                    {[
+                      ["photo_size", "Student Photo", 100],
+                      ["qr_size", "QR Code", 100],
+                    ].map(([key, label]) => {
+                      const cur = (draft.idcard_overrides || {})[key];
+                      const pct = Math.round(((cur ?? 1)) * 100);
+                      return (
+                        <div key={key} className="grid grid-cols-[1fr_auto_auto] gap-3 items-center">
+                          <label className="text-[11px] text-[var(--dojo-ink-soft)]">{label}</label>
+                          <input
+                            type="range"
+                            min="25"
+                            max="200"
+                            step="5"
+                            value={pct}
+                            onChange={(e) => setOverride(key, Number(e.target.value) / 100)}
+                            className="w-44 accent-[var(--dojo-green)]"
+                            data-testid={`user-idcard-${key}-slider`}
+                          />
+                          <span className="font-mono-accent text-[11px] w-12 text-right">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
                   {/* Font size editor */}
                   <div className="border-t border-dashed border-[var(--dojo-border)] pt-3 mt-1">
-                    <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] mb-2">Font Sizes (px)</div>
-                    <div className="grid grid-cols-2 gap-2" data-testid="user-idcard-fontsizes">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">Font Sizes (px)</div>
+                      <div className="flex items-center gap-1" data-testid="user-idcard-presets">
+                        {[
+                          ["compact", "Compact"],
+                          ["standard", "Standard"],
+                          ["large_print", "Large-print"],
+                        ].map(([k, lbl]) => (
+                          <button
+                            key={k}
+                            type="button"
+                            onClick={() => setOverride("font_sizes", FONT_SIZE_PRESETS[k].sizes)}
+                            className="text-[10px] uppercase tracking-[0.18em] px-2 py-1 border border-[var(--dojo-border)] hover:border-[var(--dojo-ink)]"
+                            data-testid={`user-idcard-preset-${k}`}
+                          >
+                            {lbl}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5" data-testid="user-idcard-fontsizes">
                       {[
-                        ["dojo_name", "Dojo name", 10],
-                        ["certificate_title", "Title", 20],
-                        ["kanji_top", "Kanji (top)", 24],
-                        ["member_name", "Member name", 20],
-                        ["role_value", "Role value", 12],
-                        ["rank_value", "Rank value", 12],
-                        ["member_number", "Member #", 14],
-                        ["field_label", "Field labels", 10],
-                        ["scan_text", "Scan caption", 9],
-                        ["issued_text", "Issued footer", 10],
-                        ["kanji_bottom", "Kanji (bottom)", 16],
-                      ].map(([key, label, def]) => {
+                        ["dojo_name", "Dojo name", 10, { kind: "label" }],
+                        ["certificate_title", "Title", 20, { kind: "title" }],
+                        ["kanji_top", "Kanji (top)", 24, { kind: "kanji" }],
+                        ["member_name", "Member name", 20, { kind: "title" }],
+                        ["role_value", "Role value", 12, { kind: "value" }],
+                        ["rank_value", "Rank value", 12, { kind: "value" }],
+                        ["member_number", "Member #", 14, { kind: "mono" }],
+                        ["field_label", "Field labels", 10, { kind: "label" }],
+                        ["scan_text", "Scan caption", 9, { kind: "label" }],
+                        ["issued_text", "Issued footer", 10, { kind: "label" }],
+                        ["kanji_bottom", "Kanji (bottom)", 16, { kind: "kanji" }],
+                      ].map(([key, label, def, opts]) => {
                         const cur = ((draft.idcard_overrides || {}).font_sizes || {})[key];
+                        const effective = cur ?? def;
+                        // Inline preview style mirrors the actual card render.
+                        const sampleStyle = (() => {
+                          const base = { fontSize: `${effective}px`, lineHeight: 1.1 };
+                          if (opts.kind === "kanji") return { ...base, fontFamily: "var(--font-kanji, serif)", color: "var(--dojo-hinomaru)" };
+                          if (opts.kind === "title") return { ...base, fontFamily: "var(--font-serif, serif)", fontWeight: 500 };
+                          if (opts.kind === "value") return { ...base, fontWeight: 500, textTransform: "capitalize" };
+                          if (opts.kind === "mono") return { ...base, fontFamily: "var(--font-mono, monospace)", letterSpacing: "0.1em" };
+                          // label
+                          return { ...base, textTransform: "uppercase", letterSpacing: "0.24em", color: "var(--dojo-ink-soft)" };
+                        })();
                         return (
-                          <label key={key} className="flex items-center gap-2 text-[11px]">
-                            <span className="text-[var(--dojo-ink-soft)] flex-1 truncate" title={label}>{label}</span>
+                          <div key={key} className="grid grid-cols-[110px_1fr_auto] gap-3 items-center" data-testid={`user-idcard-fs-row-${key}`}>
+                            <label className="text-[11px] text-[var(--dojo-ink-soft)] truncate" title={label}>{label}</label>
+                            <div className="overflow-hidden whitespace-nowrap" style={sampleStyle} data-testid={`user-idcard-fs-sample-${key}`}>
+                              {label}
+                            </div>
                             <input
                               type="number"
                               min={6}
@@ -318,7 +379,7 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                               className="input w-16 text-center"
                               data-testid={`user-idcard-fs-${key}`}
                             />
-                          </label>
+                          </div>
                         );
                       })}
                     </div>

@@ -187,7 +187,20 @@ html, body {
 .btn-accent:hover { background: var(--dojo-hinomaru-dark); border-color: var(--dojo-hinomaru-dark); }
 
 .id-card {
-  background: var(--dojo-card);
+  /* Force fixed light-mode colors inside the card so dark mode never bleeds
+     into the printed/exported credential. Cards are physical artefacts —
+     they should look identical regardless of which UI theme the operator
+     is editing in. */
+  --dojo-paper: #FBFAF6;
+  --dojo-paper-alt: #F1EEE5;
+  --dojo-ink: #0F0F0F;
+  --dojo-ink-soft: #4A4A4A;
+  --dojo-border: #E5E1D5;
+  --dojo-card: #FFFFFF;
+  --dojo-hinomaru: #D7263D;
+  --dojo-green: #1A7A3D;
+  background: #FFFFFF;
+  color: #0F0F0F;
   background-image:
     repeating-linear-gradient(45deg, rgba(26, 122, 61, 0.02) 0 2px, transparent 2px 8px),
     radial-gradient(circle at 50% 100%, rgba(26, 122, 61, 0.06), transparent 70%);
@@ -195,11 +208,15 @@ html, body {
   box-shadow: 0 22px 44px -14px rgba(0, 0, 0, 0.18), 0 6px 10px -4px rgba(0, 0, 0, 0.06);
   position: relative;
 }
+/* Re-assert the same colors even when an admin is editing from a dark-mode
+   shell, so the live preview matches what the PDF / print will look like. */
 .dark .id-card {
+  background: #FFFFFF;
+  color: #0F0F0F;
   background-image:
-    repeating-linear-gradient(45deg, rgba(44, 159, 85, 0.05) 0 2px, transparent 2px 8px),
-    radial-gradient(circle at 50% 100%, rgba(44, 159, 85, 0.1), transparent 70%);
-  box-shadow: 0 22px 44px -14px rgba(0, 0, 0, 0.55), 0 6px 10px -4px rgba(0, 0, 0, 0.3);
+    repeating-linear-gradient(45deg, rgba(26, 122, 61, 0.02) 0 2px, transparent 2px 8px),
+    radial-gradient(circle at 50% 100%, rgba(26, 122, 61, 0.06), transparent 70%);
+  box-shadow: 0 22px 44px -14px rgba(0, 0, 0, 0.18), 0 6px 10px -4px rgba(0, 0, 0, 0.06);
 }
 .id-card::before, .id-card::after {
   content: '';
