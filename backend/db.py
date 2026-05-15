@@ -1,13 +1,14 @@
 """Async SQLAlchemy / SQLModel engine + session dependency.
 
-DATABASE_URL format (async):
-  mysql+aiomysql://user:pass@host:port/dbname
+DATABASE_URL formats supported:
+  • mysql+aiomysql://user:pass@host:port/dbname  (production — Hostinger)
+  • sqlite+aiosqlite:///./yoshitaka.db           (preview / local dev fallback)
 
-Configured with NullPool to avoid the aiomysql "TCPTransport closed" bug, which
-fires when a pooled connection survives across asyncio event loops (common on
-Render free tier and any environment that may dispose the loop). NullPool opens
-a fresh connection per request — slightly slower, fully reliable on Hostinger
-shared MySQL.
+Configured with NullPool on MySQL to avoid the aiomysql "TCPTransport closed"
+bug, which fires when a pooled connection survives across asyncio event loops
+(common on Render free tier and any environment that may dispose the loop).
+NullPool opens a fresh connection per request — slightly slower, fully reliable
+on Hostinger shared MySQL.
 """
 import os
 from typing import AsyncGenerator
@@ -17,13 +18,19 @@ from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 
 DATABASE_URL = os.environ["DATABASE_URL"]
+IS_SQLITE = DATABASE_URL.startswith("sqlite")
 
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    poolclass=NullPool,
-    connect_args={"connect_timeout": 10},
-)
+if IS_SQLITE:
+    # SQLite has no concept of connection pooling that fights asyncio. Skip
+    # NullPool + the MySQL-specific connect args so the engine bootstraps cleanly.
+    engine = create_async_engine(DATABASE_URL, echo=False)
+else:
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        poolclass=NullPool,
+        connect_args={"connect_timeout": 10},
+    )
 
 async_session_factory = async_sessionmaker(
     engine,
@@ -64,13 +71,16 @@ async def init_db() -> None:
 
 
 async def _migrate_add_columns() -> None:
-    """Lightweight per-column migration for already-deployed MySQL databases.
+    """Lightweight per-column migration for already-deployed databases.
 
     Adds new optional User columns without nuking existing data. Safe to run on
-    every boot — duplicate-column errors are swallowed.
+    every boot — duplicate-column errors are swallowed. Both MySQL and SQLite
+    accept this `ALTER TABLE … ADD COLUMN` syntax; we just translate the JSON
+    spec for SQLite which has no native JSON column type.
     """
     from sqlalchemy import text
-    additions = [
+    # MySQL column specs.
+    mysql_additions = [
         ("users", "date_of_birth", "VARCHAR(32) NULL"),
         ("users", "address", "TEXT NULL"),
         ("users", "emergency_contact_name", "VARCHAR(255) NULL"),
@@ -83,6 +93,12 @@ async def _migrate_add_columns() -> None:
         ("users", "username", "VARCHAR(64) NULL"),
         ("users", "qr_code", "VARCHAR(64) NULL"),
     ]
+    # SQLite equivalents (TEXT covers VARCHAR + JSON).
+    sqlite_additions = [
+        (t, c, "TEXT" if "JSON" in s or "VARCHAR" in s or "TEXT" in s else s.split()[0])
+        for t, c, s in mysql_additions
+    ]
+    additions = sqlite_additions if IS_SQLITE else mysql_additions
     async with engine.begin() as conn:
         for table, col, spec in additions:
             try:
@@ -90,10 +106,13 @@ async def _migrate_add_columns() -> None:
             except Exception:
                 # Column likely already exists — ignore.
                 pass
-        # Unique indexes (idempotent — duplicate errors ignored)
+        # Unique indexes (idempotent — duplicate errors ignored).
+        # SQLite supports "IF NOT EXISTS"; MySQL doesn't, so we just swallow
+        # the duplicate-index error there.
+        if_not_exists = "IF NOT EXISTS " if IS_SQLITE else ""
         for stmt in (
-            "CREATE UNIQUE INDEX ix_users_username ON users (username)",
-            "CREATE UNIQUE INDEX ix_users_qr_code ON users (qr_code)",
+            f"CREATE UNIQUE INDEX {if_not_exists}ix_users_username ON users (username)",
+            f"CREATE UNIQUE INDEX {if_not_exists}ix_users_qr_code ON users (qr_code)",
         ):
             try:
                 await conn.execute(text(stmt))
