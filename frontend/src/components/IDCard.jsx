@@ -4,7 +4,212 @@ import { Loader2, Download, RotateCw } from "lucide-react";
 import { LOGO_URL } from "@/lib/brand";
 import { resolveIDCardDesign } from "@/lib/idcardTemplates";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+
+// Convert px (UI font size) → pt (jsPDF font size). 1 pt = 1.333 px.
+function pxToPt(px) { return px * 0.75; }
+
+// Load a remote/inline image into an HTMLImageElement so jsPDF can embed it
+// at exact mm coordinates without going through html2canvas.
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    if (!src) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null); // soft-fail — card just skips that image
+    img.src = src;
+  });
+}
+
+async function drawHorizontalCardOnPdf(pdf, ctx) {
+  const { W, H, user, design, data } = ctx;
+  const MARGIN = 4;            // mm
+
+  // White background w/ subtle border
+  pdf.setFillColor(255, 255, 255);
+  pdf.rect(0, 0, W, H, "F");
+  pdf.setDrawColor(229, 225, 213);
+  pdf.setLineWidth(0.2);
+  pdf.rect(0.5, 0.5, W - 1, H - 1, "S");
+
+  // Logo top-left
+  const logoSrc = design.logo_url || LOGO_URL;
+  const [logoImg, photoImg, qrImg] = await Promise.all([
+    loadImage(logoSrc),
+    loadImage(user.photo_url),
+    loadImage(data?.qr_png),
+  ]);
+  if (logoImg) {
+    try { pdf.addImage(logoImg, "PNG", MARGIN, MARGIN, 9, 9); } catch (_) {}
+  }
+
+  // Top text block (right of logo)
+  pdf.setFont("helvetica", "normal");
+  pdf.setTextColor(74, 74, 74);
+  pdf.setFontSize(6);
+  pdf.text(String(design.dojo_name).toUpperCase(), MARGIN + 11, MARGIN + 3.2);
+
+  pdf.setFont("times", "normal");
+  pdf.setTextColor(15, 15, 15);
+  pdf.setFontSize(12);
+  pdf.text(String(design.certificate_title), MARGIN + 11, MARGIN + 8);
+
+  // Top-right kanji (in accent color)
+  const accent = hexToRgb(design.accent_color || "#D7263D");
+  pdf.setTextColor(accent.r, accent.g, accent.b);
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(14);
+  pdf.text(String(design.kanji_top), W - MARGIN, MARGIN + 6, { align: "right" });
+
+  // Divider line
+  pdf.setDrawColor(229, 225, 213);
+  pdf.setLineWidth(0.15);
+  pdf.line(MARGIN, MARGIN + 11, W - MARGIN, MARGIN + 11);
+
+  // Photo (left col), info (middle), QR (right) — sized in mm
+  const PHOTO_W = 13 * (design.photo_size || 1);
+  const PHOTO_H = 17 * (design.photo_size || 1);
+  const QR_SIDE = 16 * (design.qr_size || 1);
+  const contentY = MARGIN + 13;
+  const photoY = Math.min(H - MARGIN - PHOTO_H, contentY);
+
+  // Photo
+  if (photoImg) {
+    try { pdf.addImage(photoImg, "PNG", MARGIN, photoY, PHOTO_W, PHOTO_H); } catch (_) {}
+    pdf.setDrawColor(229, 225, 213);
+    pdf.rect(MARGIN, photoY, PHOTO_W, PHOTO_H, "S");
+  } else {
+    pdf.setDrawColor(229, 225, 213);
+    pdf.setLineDashPattern([0.6, 0.6], 0);
+    pdf.rect(MARGIN, photoY, PHOTO_W, PHOTO_H, "S");
+    pdf.setLineDashPattern([], 0);
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(5);
+    pdf.setTextColor(74, 74, 74);
+    pdf.text("NO PHOTO", MARGIN + PHOTO_W / 2, photoY + PHOTO_H / 2, { align: "center", baseline: "middle" });
+  }
+
+  // Info block
+  let infoX = MARGIN + PHOTO_W + 4;
+  let infoY = contentY + 2;
+  drawLabel(pdf, design.name_label, infoX, infoY);
+  pdf.setFont("times", "normal"); pdf.setFontSize(11); pdf.setTextColor(15, 15, 15);
+  pdf.text(String(user.name || "—"), infoX, infoY + 3.8);
+  infoY += 8;
+  drawLabel(pdf, design.role_label, infoX, infoY);
+  drawValue(pdf, prettyRole(user.role), infoX, infoY + 3.2);
+  drawLabel(pdf, design.rank_label, infoX + 18, infoY);
+  drawValue(pdf, user.belt_rank || "—", infoX + 18, infoY + 3.2);
+  infoY += 7;
+  drawLabel(pdf, design.footer_label, infoX, infoY);
+  pdf.setFont("courier", "normal"); pdf.setFontSize(9); pdf.setTextColor(15, 15, 15);
+  pdf.text(String(user.member_number || "—"), infoX, infoY + 3.4);
+
+  // QR (right)
+  const qrX = W - MARGIN - QR_SIDE;
+  const qrY = contentY + 1;
+  if (qrImg) {
+    try { pdf.addImage(qrImg, "PNG", qrX, qrY, QR_SIDE, QR_SIDE); } catch (_) {}
+  }
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(5); pdf.setTextColor(74, 74, 74);
+  pdf.text(String(design.scan_text).toUpperCase(), qrX + QR_SIDE / 2, qrY + QR_SIDE + 2, { align: "center" });
+
+  // Bottom divider + footer
+  const footerY = H - MARGIN - 2;
+  pdf.setDrawColor(229, 225, 213); pdf.setLineWidth(0.15);
+  pdf.line(MARGIN, footerY - 3, W - MARGIN, footerY - 3);
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(5); pdf.setTextColor(74, 74, 74);
+  pdf.text(String(design.issued_text).toUpperCase(), MARGIN, footerY);
+  pdf.setFont("times", "normal"); pdf.setFontSize(9);
+  pdf.setTextColor(accent.r, accent.g, accent.b);
+  pdf.text(String(design.kanji_bottom), W - MARGIN, footerY, { align: "right" });
+}
+
+async function drawVerticalCardOnPdf(pdf, ctx) {
+  const { W, H, user, design, data } = ctx;
+  const MARGIN = 3;
+
+  pdf.setFillColor(255, 255, 255); pdf.rect(0, 0, W, H, "F");
+  pdf.setDrawColor(229, 225, 213); pdf.setLineWidth(0.2);
+  pdf.rect(0.5, 0.5, W - 1, H - 1, "S");
+
+  const logoSrc = design.logo_url || LOGO_URL;
+  const [logoImg, photoImg, qrImg] = await Promise.all([
+    loadImage(logoSrc),
+    loadImage(user.photo_url),
+    loadImage(data?.qr_png),
+  ]);
+
+  // Top: logo centered
+  if (logoImg) {
+    try { pdf.addImage(logoImg, "PNG", (W - 10) / 2, MARGIN + 1, 10, 10); } catch (_) {}
+  }
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(5); pdf.setTextColor(74, 74, 74);
+  pdf.text(String(design.dojo_name).toUpperCase(), W / 2, MARGIN + 13.5, { align: "center" });
+  pdf.setFont("times", "normal"); pdf.setFontSize(10); pdf.setTextColor(15, 15, 15);
+  pdf.text(String(design.certificate_title), W / 2, MARGIN + 17, { align: "center" });
+
+  // Photo + QR row
+  const PHOTO_W = 14 * (design.photo_size || 1);
+  const PHOTO_H = 18 * (design.photo_size || 1);
+  const QR_SIDE = 18 * (design.qr_size || 1);
+  const rowY = MARGIN + 20;
+  const rowGap = 2;
+  const rowW = PHOTO_W + rowGap + QR_SIDE;
+  const startX = (W - rowW) / 2;
+
+  if (photoImg) {
+    try { pdf.addImage(photoImg, "PNG", startX, rowY, PHOTO_W, PHOTO_H); } catch (_) {}
+    pdf.setDrawColor(229, 225, 213); pdf.rect(startX, rowY, PHOTO_W, PHOTO_H, "S");
+  } else {
+    pdf.setDrawColor(229, 225, 213); pdf.setLineDashPattern([0.6, 0.6], 0);
+    pdf.rect(startX, rowY, PHOTO_W, PHOTO_H, "S");
+    pdf.setLineDashPattern([], 0);
+    pdf.setFont("helvetica", "normal"); pdf.setFontSize(5); pdf.setTextColor(74, 74, 74);
+    pdf.text("NO PHOTO", startX + PHOTO_W / 2, rowY + PHOTO_H / 2, { align: "center", baseline: "middle" });
+  }
+  const qrX = startX + PHOTO_W + rowGap;
+  if (qrImg) {
+    try { pdf.addImage(qrImg, "PNG", qrX, rowY, QR_SIDE, QR_SIDE); } catch (_) {}
+  }
+
+  // Member info bottom block
+  let y = rowY + Math.max(PHOTO_H, QR_SIDE) + 4;
+  drawLabel(pdf, design.name_label, MARGIN, y);
+  pdf.setFont("times", "normal"); pdf.setFontSize(9); pdf.setTextColor(15, 15, 15);
+  pdf.text(String(user.name || "—"), MARGIN, y + 3.4);
+  y += 7;
+  drawLabel(pdf, design.rank_label, MARGIN, y);
+  drawValue(pdf, user.belt_rank || "—", MARGIN, y + 3.2);
+  drawLabel(pdf, design.footer_label, MARGIN + 22, y);
+  pdf.setFont("courier", "normal"); pdf.setFontSize(7); pdf.setTextColor(15, 15, 15);
+  pdf.text(String(user.member_number || "—"), MARGIN + 22, y + 3.2);
+
+  // Bottom footer
+  const accent = hexToRgb(design.accent_color || "#D7263D");
+  const footerY = H - MARGIN - 1;
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(5); pdf.setTextColor(74, 74, 74);
+  pdf.text(String(design.issued_text).toUpperCase(), MARGIN, footerY);
+  pdf.setFont("times", "normal"); pdf.setFontSize(8); pdf.setTextColor(accent.r, accent.g, accent.b);
+  pdf.text(String(design.kanji_bottom), W - MARGIN, footerY, { align: "right" });
+}
+
+function drawLabel(pdf, txt, x, y) {
+  pdf.setFont("helvetica", "normal"); pdf.setFontSize(5); pdf.setTextColor(74, 74, 74);
+  pdf.text(String(txt || "").toUpperCase(), x, y);
+}
+function drawValue(pdf, txt, x, y) {
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(8); pdf.setTextColor(15, 15, 15);
+  pdf.text(String(txt || "—"), x, y);
+}
+function prettyRole(role) {
+  return String(role || "").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+function hexToRgb(hex) {
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex || "");
+  if (!m) return { r: 215, g: 38, b: 61 };
+  return { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) };
+}
 
 const DEFAULTS = {
   dojo_name: "Yoshitaka Karate-Do",
@@ -95,94 +300,31 @@ export default function IDCard({ user, defaultOrientation = "horizontal" }) {
     return () => ro.disconnect();
   }, [orientation]);
 
+  // Native-jsPDF export. Bypasses html2canvas entirely so font baselines
+  // are computed by jsPDF (which embeds standard fonts and knows their exact
+  // metrics) instead of by an HTML-rendering canvas pipeline that can drop
+  // ascenders/descenders during font fallback. Result: zero text clipping,
+  // works on every browser, no font-loading race condition.
   const exportPDF = async () => {
-    if (!cardRef.current) return;
     setExporting(true);
-    // html2canvas mis-reads sizes when the captured node has a `transform`
-    // ancestor. The scaled wrapper is purely for on-screen fit, so we
-    // temporarily neutralise it during the snapshot.
-    const transformParent = cardRef.current.parentElement;
-    const prevTransform = transformParent?.style.transform || "";
-    if (transformParent) transformParent.style.transform = "none";
     try {
-      // Ensure every web font has finished downloading + rendering. Without
-      // this, html2canvas snapshots a half-rendered font and shifts text up
-      // by the baseline difference → top half of every line gets clipped.
-      if (typeof document !== "undefined" && document.fonts && document.fonts.ready) {
-        await document.fonts.ready;
-      }
-      // Extra grace period so any font fallback substitution settles.
-      await new Promise((r) => setTimeout(r, 120));
-
-      const canvas = await html2canvas(cardRef.current, {
-        scale: 4,
-        backgroundColor: "#FFFFFF",
-        useCORS: true,
-        allowTaint: false,
-        logging: false,
-        letterRendering: true,
-        // Force exact pixel dims of the unscaled card.
-        width: cardRef.current.offsetWidth,
-        height: cardRef.current.offsetHeight,
-        windowWidth: cardRef.current.offsetWidth,
-        windowHeight: cardRef.current.offsetHeight,
-        // CRITICAL — inside the cloned document used by html2canvas, replace
-        // every web font with a system font whose metrics it can measure
-        // reliably. Without this the custom serif/sans get clipped uniformly
-        // because html2canvas falls back to a font with different baselines.
-        // The visible preview keeps the original fonts; only the snapshot is
-        // affected.
-        onclone: (clonedDoc) => {
-          const style = clonedDoc.createElement("style");
-          style.textContent = `
-            .id-card, .id-card * {
-              font-family: Georgia, "Times New Roman", serif !important;
-            }
-            .id-card .font-kanji {
-              font-family: "Hiragino Mincho ProN", "Yu Mincho", "MS Mincho", serif !important;
-            }
-            .id-card .font-mono-accent,
-            .id-card [class*="font-mono"] {
-              font-family: "Courier New", "Lucida Console", monospace !important;
-            }
-            /* Belt-and-suspenders: every text node inside the card gets
-               enough padding-bottom so descenders are never clipped. */
-            .id-card div, .id-card span {
-              padding-bottom: 1px;
-            }
-          `;
-          clonedDoc.head.appendChild(style);
-        },
-      });
-      const imgData = canvas.toDataURL("image/png");
       const isV = orientation === "vertical";
+      const W = isV ? CR80_MM.h : CR80_MM.w; // mm
+      const H = isV ? CR80_MM.w : CR80_MM.h;
       const pdf = new jsPDF({
         orientation: isV ? "portrait" : "landscape",
         unit: "mm",
-        format: isV ? [CR80_MM.h, CR80_MM.w] : [CR80_MM.w, CR80_MM.h],
+        format: [W, H],
+        compress: true,
       });
-      pdf.addImage(
-        imgData,
-        "PNG",
-        0,
-        0,
-        isV ? CR80_MM.h : CR80_MM.w,
-        isV ? CR80_MM.w : CR80_MM.h,
-      );
+      if (isV) await drawVerticalCardOnPdf(pdf, { W, H, user, design, data });
+      else await drawHorizontalCardOnPdf(pdf, { W, H, user, design, data });
       pdf.save(`yoshitaka-id-${user.member_number}-${orientation}.pdf`);
     } catch (err) {
-      // Surface the real cause (typically a tainted-canvas / CORS image).
       // eslint-disable-next-line no-console
       console.error("[IDCard PDF] export failed:", err);
-      alert(
-        "Couldn't generate the PDF.\n\n" +
-        "This is usually caused by an image (logo, photo, or background) " +
-        "served from a host without CORS. Try removing that image and " +
-        "re-exporting, or replacing it with a re-uploaded version.\n\n" +
-        "Error: " + (err?.message || err)
-      );
+      alert("Couldn't generate the PDF.\n\n" + (err?.message || err));
     } finally {
-      if (transformParent) transformParent.style.transform = prevTransform;
       setExporting(false);
     }
   };
