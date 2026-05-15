@@ -10,6 +10,7 @@ import base64
 import uuid
 import secrets
 import logging
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Literal
 
@@ -17,6 +18,7 @@ import jwt
 import bcrypt
 import qrcode
 import barcode
+import httpx
 from barcode.writer import ImageWriter
 
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Request, Response
@@ -62,9 +64,16 @@ api_router = APIRouter(prefix="/api")
 
 
 # Lightweight readiness probe — used by the frontend to wake the Render
-# free-tier dyno (no DB call, returns instantly).
+# free-tier dyno (no DB call, returns instantly). Both `/api/health` (the
+# normal route) and `/health` (root) are exposed: Render serves both, and
+# external uptime monitors / our own self-ping use the /api path.
 @api_router.get("/health")
-async def health():
+async def api_health():
+    return {"status": "ok", "service": "yoshitaka-karate-do"}
+
+
+@app.get("/health")
+async def root_health():
     return {"status": "ok", "service": "yoshitaka-karate-do"}
 
 
@@ -1504,6 +1513,34 @@ async def on_startup():
             if not res.scalar_one_or_none():
                 session.add(CMSPage(slug=slug, title=page["title"], content=page["content"], updated_at=now))
         await session.commit()
+
+    # Spin up the self-ping keep-warm loop. Render free tier sleeps after ~15
+    # min of no inbound HTTP traffic — this loop hits our own /api/health
+    # every 10 min so we stay warm. Skipped when KEEP_WARM_URL is unset (local
+    # dev) so we don't spam logs with self-loops.
+    keep_warm_url = os.environ.get("KEEP_WARM_URL") or os.environ.get("APP_URL")
+    if keep_warm_url:
+        asyncio.create_task(_keep_warm_loop(keep_warm_url.rstrip("/")))
+        logger.info(f"[keep-warm] self-ping enabled → {keep_warm_url}/api/health every 600s")
+    else:
+        logger.info("[keep-warm] disabled (set KEEP_WARM_URL on Render to enable)")
+
+
+async def _keep_warm_loop(base_url: str):
+    """Background task: ping our own /api/health every 10 minutes so Render's
+    free-tier dyno never sleeps. Failures are swallowed — if the network blips
+    we'll just retry on the next tick."""
+    interval = int(os.environ.get("KEEP_WARM_INTERVAL_SECONDS", "600"))
+    # Brief initial delay so app finishes boot before first ping.
+    await asyncio.sleep(30)
+    while True:
+        try:
+            async with httpx.AsyncClient(timeout=20.0) as client:
+                r = await client.get(f"{base_url}/api/health")
+                logger.info(f"[keep-warm] ping → {r.status_code}")
+        except Exception as e:
+            logger.warning(f"[keep-warm] ping failed: {e}")
+        await asyncio.sleep(interval)
 
 
 @app.on_event("shutdown")

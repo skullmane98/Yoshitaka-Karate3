@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
-import { Loader2, Download } from "lucide-react";
+import { Loader2, Download, RotateCw } from "lucide-react";
 import { LOGO_URL } from "@/lib/brand";
 import { resolveIDCardDesign } from "@/lib/idcardTemplates";
 import jsPDF from "jspdf";
@@ -22,16 +22,33 @@ const DEFAULTS = {
   background_url: "",
 };
 
+// Real-world CR80 plastic-card dimensions (credit-card size).
+const CR80_MM = { w: 85.6, h: 53.98 };
+// Internal render size — rendered crisp, then CSS-scaled to fit container.
+// 12.0 px/mm gives ~1027 × 648 logical pixels at landscape, more than enough
+// resolution for screen + 600 dpi-ish printing once html2canvas takes scale: 4.
+const PX_PER_MM = 12;
+
+function cardPx(orientation) {
+  const w = orientation === "vertical" ? CR80_MM.h : CR80_MM.w;
+  const h = orientation === "vertical" ? CR80_MM.w : CR80_MM.h;
+  return { w: Math.round(w * PX_PER_MM), h: Math.round(h * PX_PER_MM) };
+}
+
 /**
- * Certificate-style ID card with QR + Barcode + Logo. Includes PDF export.
- * Reads design from the `idcard` CMS page so super_admin / admin can customize.
+ * Plastic-card style ID with QR + Logo. Two orientations (horizontal /
+ * vertical), both sized to CR80 (85.6 × 53.98 mm). PDF export targets exactly
+ * those dimensions so prints come out flush on standard blank cards.
  */
-export default function IDCard({ user }) {
+export default function IDCard({ user, defaultOrientation = "horizontal" }) {
   const [data, setData] = useState(null);
   const [design, setDesign] = useState(DEFAULTS);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [orientation, setOrientation] = useState(defaultOrientation);
+  const [scale, setScale] = useState(1);
   const cardRef = useRef(null);
+  const wrapRef = useRef(null);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -55,31 +72,47 @@ export default function IDCard({ user }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.idcard_template, user?.idcard_overrides]);
 
+  // Compute the scale factor whenever the wrapper resizes so the card always
+  // fills the available width while keeping CR80 aspect ratio.
+  useEffect(() => {
+    const inner = cardPx(orientation);
+    const update = () => {
+      if (!wrapRef.current) return;
+      const cw = wrapRef.current.clientWidth;
+      setScale(Math.min(cw / inner.w, 1.4));
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, [orientation]);
+
   const exportPDF = async () => {
     if (!cardRef.current) return;
     setExporting(true);
     try {
       const canvas = await html2canvas(cardRef.current, {
-        scale: 3,
+        scale: 4,
         backgroundColor: "#FFFFFF",
         useCORS: true,
         logging: false,
       });
       const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: [120, 85] });
-      const pdfW = pdf.internal.pageSize.getWidth();
-      const pdfH = pdf.internal.pageSize.getHeight();
-      const ratio = canvas.width / canvas.height;
-      let imgW = pdfW - 6;
-      let imgH = imgW / ratio;
-      if (imgH > pdfH - 6) {
-        imgH = pdfH - 6;
-        imgW = imgH * ratio;
-      }
-      const x = (pdfW - imgW) / 2;
-      const y = (pdfH - imgH) / 2;
-      pdf.addImage(imgData, "PNG", x, y, imgW, imgH);
-      pdf.save(`yoshitaka-id-${user.member_number}.pdf`);
+      const isV = orientation === "vertical";
+      const pdf = new jsPDF({
+        orientation: isV ? "portrait" : "landscape",
+        unit: "mm",
+        format: isV ? [CR80_MM.h, CR80_MM.w] : [CR80_MM.w, CR80_MM.h],
+      });
+      pdf.addImage(
+        imgData,
+        "PNG",
+        0,
+        0,
+        isV ? CR80_MM.h : CR80_MM.w,
+        isV ? CR80_MM.w : CR80_MM.h,
+      );
+      pdf.save(`yoshitaka-id-${user.member_number}-${orientation}.pdf`);
     } finally {
       setExporting(false);
     }
@@ -88,94 +121,80 @@ export default function IDCard({ user }) {
   if (!user) return null;
 
   const logoSrc = design.logo_url || LOGO_URL;
-  const bgStyle = design.background_url
-    ? {
-        backgroundImage: `url(${design.background_url})`,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-      }
-    : {};
+  const isVertical = orientation === "vertical";
+  const inner = cardPx(orientation);
 
   return (
-    <div className="space-y-4">
-      <div ref={cardRef} className="id-card p-8 md:p-10 relative overflow-hidden" data-testid="id-card">
-        {/* Optional background watermark */}
-        {design.background_url && (
+    <div className="space-y-3" data-testid="id-card-wrapper">
+      {/* Orientation toggle */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">Layout</span>
+        <div className="inline-flex border border-[var(--dojo-border)]">
+          <button
+            type="button"
+            onClick={() => setOrientation("horizontal")}
+            className={`px-3 py-1 text-[10px] uppercase tracking-[0.18em] ${orientation === "horizontal" ? "bg-[var(--dojo-ink)] text-[var(--dojo-paper)]" : "text-[var(--dojo-ink)]"}`}
+            data-testid="idcard-layout-horizontal"
+          >Horizontal</button>
+          <button
+            type="button"
+            onClick={() => setOrientation("vertical")}
+            className={`px-3 py-1 text-[10px] uppercase tracking-[0.18em] border-l border-[var(--dojo-border)] ${orientation === "vertical" ? "bg-[var(--dojo-ink)] text-[var(--dojo-paper)]" : "text-[var(--dojo-ink)]"}`}
+            data-testid="idcard-layout-vertical"
+          >Vertical</button>
+        </div>
+        <span className="text-[9px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] ml-auto" title="Standard CR80 plastic-card size">
+          CR80 · 85.6 × 53.98 mm
+        </span>
+      </div>
+
+      {/* Scaled wrapper: keeps the card's outer bounding box at the scaled
+          size so surrounding layout doesn't fight with the inner transform. */}
+      <div
+        ref={wrapRef}
+        className="mx-auto"
+        style={{
+          width: "100%",
+          maxWidth: inner.w,
+          height: inner.h * scale,
+        }}
+      >
+        <div
+          style={{
+            width: inner.w,
+            height: inner.h,
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+          }}
+        >
           <div
-            className="absolute inset-0 opacity-40 pointer-events-none"
-            style={bgStyle}
-            aria-hidden
-          />
-        )}
-        <div className="relative">
-          <div className="flex items-start justify-between mb-6 gap-4">
-            <div className="flex items-center gap-4">
-              <img src={logoSrc} alt="" className="h-16 w-16 object-contain" />
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--dojo-ink-soft)] mb-1">
-                  {design.dojo_name}
-                </div>
-                <div className="font-serif text-3xl md:text-4xl font-medium tracking-tight leading-none">
-                  {design.certificate_title}
-                </div>
-              </div>
-            </div>
-            <span
-              className="font-kanji text-4xl leading-none"
-              style={{ color: design.accent_color }}
-            >
-              {design.kanji_top}
-            </span>
-          </div>
+            ref={cardRef}
+            className="id-card relative overflow-hidden"
+            data-testid="id-card"
+            style={{
+              width: inner.w,
+              height: inner.h,
+              padding: isVertical ? 24 : 32,
+            }}
+          >
+            {/* Optional background watermark */}
+            {design.background_url && (
+              <div
+                className="absolute inset-0 opacity-40 pointer-events-none"
+                style={{
+                  backgroundImage: `url(${design.background_url})`,
+                  backgroundSize: "cover",
+                  backgroundPosition: "center",
+                }}
+                aria-hidden
+              />
+            )}
 
-          <div className="brush-divider mb-6" />
-
-          <div className="grid grid-cols-[1fr_auto] gap-6 sm:gap-8 items-center">
-            <div className="space-y-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.name_label}</div>
-                <div className="font-serif text-2xl font-medium" data-testid="idcard-name">{user.name}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.role_label}</div>
-                  <div className="text-sm font-medium capitalize">{user.role.replace("_", " ")}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.rank_label}</div>
-                  <div className="text-sm font-medium">{user.belt_rank || "—"}</div>
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.footer_label}</div>
-                <div className="font-mono-accent text-base tracking-widest" data-testid="idcard-member-number">
-                  {user.member_number}
-                </div>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center gap-2">
-              <div className="p-3 bg-[var(--dojo-input-bg)] border border-[var(--dojo-border)]">
-                {loading || !data ? (
-                  <div className="w-36 h-36 flex items-center justify-center">
-                    <Loader2 className="animate-spin text-[var(--dojo-ink-soft)]" />
-                  </div>
-                ) : (
-                  <img src={data.qr_png} alt="QR code" className="w-36 h-36" data-testid="idcard-qr" />
-                )}
-              </div>
-              <div className="text-[9px] uppercase tracking-[0.3em] text-[var(--dojo-ink-soft)]">
-                {design.scan_text}
-              </div>
-            </div>
-          </div>
-
-          <div className="brush-divider my-6" />
-          <div className="flex justify-between items-end text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">
-            <span>{design.issued_text}</span>
-            <span className="font-kanji text-sm" style={{ color: design.accent_color }}>
-              {design.kanji_bottom}
-            </span>
+            {isVertical ? (
+              <VerticalLayout user={user} design={design} data={data} loading={loading} logoSrc={logoSrc} />
+            ) : (
+              <HorizontalLayout user={user} design={design} data={data} loading={loading} logoSrc={logoSrc} />
+            )}
           </div>
         </div>
       </div>
@@ -187,8 +206,142 @@ export default function IDCard({ user }) {
         data-testid="idcard-pdf-btn"
       >
         <Download size={14} />
-        {exporting ? "Generating PDF…" : "Download as PDF"}
+        {exporting ? "Generating PDF…" : `Download CR80 ${orientation === "vertical" ? "Portrait" : "Landscape"} PDF`}
       </button>
+      <div className="text-[10px] text-[var(--dojo-ink-soft)] flex items-center gap-1">
+        <RotateCw size={10} /> Print at 100% scale on a CR80 blank card (85.6 × 53.98 mm).
+      </div>
+    </div>
+  );
+}
+
+function HorizontalLayout({ user, design, data, loading, logoSrc }) {
+  return (
+    <div className="relative h-full flex flex-col">
+      <div className="flex items-start justify-between mb-3 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <img src={logoSrc} alt="" className="h-14 w-14 object-contain shrink-0" />
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--dojo-ink-soft)] mb-1 truncate">
+              {design.dojo_name}
+            </div>
+            <div className="font-serif text-2xl font-medium tracking-tight leading-none truncate">
+              {design.certificate_title}
+            </div>
+          </div>
+        </div>
+        <span className="font-kanji text-3xl leading-none shrink-0" style={{ color: design.accent_color }}>
+          {design.kanji_top}
+        </span>
+      </div>
+
+      <div className="brush-divider mb-4" />
+
+      <div className="grid grid-cols-[1fr_auto] gap-5 items-start flex-1 min-h-0">
+        <div className="space-y-3 min-w-0 self-center">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.name_label}</div>
+            <div className="font-serif text-2xl font-medium leading-tight truncate" data-testid="idcard-name">{user.name}</div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.role_label}</div>
+              <div className="text-sm font-medium capitalize truncate">{user.role.replace("_", " ")}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.rank_label}</div>
+              <div className="text-sm font-medium truncate">{user.belt_rank || "—"}</div>
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.footer_label}</div>
+            <div className="font-mono-accent text-base tracking-widest" data-testid="idcard-member-number">
+              {user.member_number}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-1 shrink-0 self-center">
+          <div className="p-2 bg-white border border-[var(--dojo-border)]">
+            {loading || !data ? (
+              <div className="w-44 h-44 flex items-center justify-center">
+                <Loader2 className="animate-spin text-[var(--dojo-ink-soft)]" />
+              </div>
+            ) : (
+              <img src={data.qr_png} alt="QR" className="w-44 h-44" data-testid="idcard-qr" />
+            )}
+          </div>
+          <div className="text-[9px] uppercase tracking-[0.3em] text-[var(--dojo-ink-soft)]">
+            {design.scan_text}
+          </div>
+        </div>
+      </div>
+
+      <div className="brush-divider mt-3 mb-2" />
+      <div className="flex justify-between items-end text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">
+        <span className="truncate pr-2">{design.issued_text}</span>
+        <span className="font-kanji text-base shrink-0" style={{ color: design.accent_color }}>
+          {design.kanji_bottom}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function VerticalLayout({ user, design, data, loading, logoSrc }) {
+  return (
+    <div className="relative h-full flex flex-col items-center text-center">
+      <img src={logoSrc} alt="" className="h-16 w-16 object-contain mb-2" />
+      <div className="text-[10px] uppercase tracking-[0.28em] text-[var(--dojo-ink-soft)]">
+        {design.dojo_name}
+      </div>
+      <div className="font-serif text-xl font-medium tracking-tight leading-tight mt-1">
+        {design.certificate_title}
+      </div>
+      <span className="font-kanji text-2xl leading-none mt-1" style={{ color: design.accent_color }}>
+        {design.kanji_top}
+      </span>
+
+      <div className="brush-divider w-full my-3" />
+
+      <div className="p-2 bg-white border border-[var(--dojo-border)]">
+        {loading || !data ? (
+          <div className="w-40 h-40 flex items-center justify-center">
+            <Loader2 className="animate-spin text-[var(--dojo-ink-soft)]" />
+          </div>
+        ) : (
+          <img src={data.qr_png} alt="QR" className="w-40 h-40" data-testid="idcard-qr" />
+        )}
+      </div>
+      <div className="text-[9px] uppercase tracking-[0.3em] text-[var(--dojo-ink-soft)] mt-1">
+        {design.scan_text}
+      </div>
+
+      <div className="brush-divider w-full my-3" />
+
+      <div className="w-full">
+        <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.name_label}</div>
+        <div className="font-serif text-lg font-medium leading-tight truncate" data-testid="idcard-name">{user.name}</div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 w-full mt-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.rank_label}</div>
+          <div className="text-sm font-medium truncate">{user.belt_rank || "—"}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]">{design.footer_label}</div>
+          <div className="font-mono-accent text-sm tracking-widest truncate" data-testid="idcard-member-number">
+            {user.member_number}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-auto pt-3 w-full text-[9px] uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)] flex justify-between items-end">
+        <span className="truncate pr-2">{design.issued_text}</span>
+        <span className="font-kanji text-sm shrink-0" style={{ color: design.accent_color }}>
+          {design.kanji_bottom}
+        </span>
+      </div>
     </div>
   );
 }
