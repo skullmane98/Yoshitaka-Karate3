@@ -3,8 +3,18 @@ import axios from "axios";
 // Tolerate operators who accidentally set REACT_APP_BACKEND_URL with a trailing
 // slash or with `/api` already appended — both situations cause `/api/api/...`
 // 404s in production. Normalise once at module load.
+//
+// Defence-in-depth fallback: if REACT_APP_BACKEND_URL is unset at build time
+// (a common Hostinger / Vercel mistake), point at the known Render service so
+// login still works instead of throwing 404s against the static-frontend host.
+const PROD_FALLBACK = "https://yoshitaka-karate.onrender.com";
 const RAW = (process.env.REACT_APP_BACKEND_URL || "").trim();
-const BASE = RAW.replace(/\/+$/, "").replace(/\/api$/i, "");
+let BASE = RAW.replace(/\/+$/, "").replace(/\/api$/i, "");
+if (!BASE) {
+  // eslint-disable-next-line no-console
+  console.warn(`[api] REACT_APP_BACKEND_URL not set — falling back to ${PROD_FALLBACK}`);
+  BASE = PROD_FALLBACK;
+}
 export const BACKEND_BASE_URL = BASE;
 
 const api = axios.create({
