@@ -41,6 +41,12 @@ super_admin → admin → renshi → sensei → team_member → student
 - **[2026-02-14] Blog tab for all users**
   - `BlogReader` component (read-only) embedded in `StudentDashboard` via tabs
   - Lists published posts + inline post viewer; no public-page navigation required
+- **[2026-02-17] ID Card polish (final pass)**
+  - `background_size` slider (25–200%) added in `UserDrawer` → scales watermark via CSS transform
+  - Member photo inputs (Profile + ID Card tabs) now use `capture="environment"` → opens native camera on mobile
+  - `drawHorizontalCardOnPdf` adds `TOP_PAD` safe-zone so CR-80 prints no longer clip ascenders
+  - `drawVerticalCardOnPdf` logo + heading Y-coords shifted to clear logo
+  - Horizontal layout (DOM + PDF) stacks Role → Rank → Member # vertically so Rank can never crowd the QR column
 
 ## Backlog
 ### P1

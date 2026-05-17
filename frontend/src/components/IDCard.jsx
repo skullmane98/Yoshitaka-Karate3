@@ -24,6 +24,9 @@ function loadImage(src) {
 async function drawHorizontalCardOnPdf(pdf, ctx) {
   const { W, H, user, design, data } = ctx;
   const MARGIN = 4;            // mm
+  // Vertical offset for the top text block — keeps a healthy safe-zone from
+  // the card's top edge so cheap card printers don't clip ascenders.
+  const TOP_PAD = 2;           // mm
 
   // White background w/ subtle border
   pdf.setFillColor(255, 255, 255);
@@ -40,37 +43,37 @@ async function drawHorizontalCardOnPdf(pdf, ctx) {
     loadImage(data?.qr_png),
   ]);
   if (logoImg) {
-    try { pdf.addImage(logoImg, "PNG", MARGIN, MARGIN, 9, 9); } catch (_) {}
+    try { pdf.addImage(logoImg, "PNG", MARGIN, MARGIN + TOP_PAD, 9, 9); } catch (_) {}
   }
 
   // Top text block (right of logo)
   pdf.setFont("helvetica", "normal");
   pdf.setTextColor(74, 74, 74);
   pdf.setFontSize(6);
-  pdf.text(String(design.dojo_name).toUpperCase(), MARGIN + 11, MARGIN + 3.2);
+  pdf.text(String(design.dojo_name).toUpperCase(), MARGIN + 11, MARGIN + TOP_PAD + 3.2);
 
   pdf.setFont("times", "normal");
   pdf.setTextColor(15, 15, 15);
   pdf.setFontSize(12);
-  pdf.text(String(design.certificate_title), MARGIN + 11, MARGIN + 8);
+  pdf.text(String(design.certificate_title), MARGIN + 11, MARGIN + TOP_PAD + 8);
 
   // Top-right kanji (in accent color)
   const accent = hexToRgb(design.accent_color || "#D7263D");
   pdf.setTextColor(accent.r, accent.g, accent.b);
   pdf.setFont("times", "normal");
   pdf.setFontSize(14);
-  pdf.text(String(design.kanji_top), W - MARGIN, MARGIN + 6, { align: "right" });
+  pdf.text(String(design.kanji_top), W - MARGIN, MARGIN + TOP_PAD + 6, { align: "right" });
 
   // Divider line
   pdf.setDrawColor(229, 225, 213);
   pdf.setLineWidth(0.15);
-  pdf.line(MARGIN, MARGIN + 11, W - MARGIN, MARGIN + 11);
+  pdf.line(MARGIN, MARGIN + TOP_PAD + 11, W - MARGIN, MARGIN + TOP_PAD + 11);
 
   // Photo (left col), info (middle), QR (right) — sized in mm
   const PHOTO_W = 13 * (design.photo_size || 1);
   const PHOTO_H = 17 * (design.photo_size || 1);
   const QR_SIDE = 16 * (design.qr_size || 1);
-  const contentY = MARGIN + 13;
+  const contentY = MARGIN + TOP_PAD + 13;
   const photoY = Math.min(H - MARGIN - PHOTO_H, contentY);
 
   // Photo
@@ -89,18 +92,19 @@ async function drawHorizontalCardOnPdf(pdf, ctx) {
     pdf.text("NO PHOTO", MARGIN + PHOTO_W / 2, photoY + PHOTO_H / 2, { align: "center", baseline: "middle" });
   }
 
-  // Info block
+  // Info block — stacked rows so Rank can't drift into the QR column
   let infoX = MARGIN + PHOTO_W + 4;
   let infoY = contentY + 2;
   drawLabel(pdf, design.name_label, infoX, infoY);
   pdf.setFont("times", "normal"); pdf.setFontSize(11); pdf.setTextColor(15, 15, 15);
   pdf.text(String(user.name || "—"), infoX, infoY + 3.8);
-  infoY += 8;
+  infoY += 7;
   drawLabel(pdf, design.role_label, infoX, infoY);
   drawValue(pdf, prettyRole(user.role), infoX, infoY + 3.2);
-  drawLabel(pdf, design.rank_label, infoX + 18, infoY);
-  drawValue(pdf, user.belt_rank || "—", infoX + 18, infoY + 3.2);
-  infoY += 7;
+  infoY += 6;
+  drawLabel(pdf, design.rank_label, infoX, infoY);
+  drawValue(pdf, user.belt_rank || "—", infoX, infoY + 3.2);
+  infoY += 6;
   drawLabel(pdf, design.footer_label, infoX, infoY);
   pdf.setFont("courier", "normal"); pdf.setFontSize(9); pdf.setTextColor(15, 15, 15);
   pdf.text(String(user.member_number || "—"), infoX, infoY + 3.4);
@@ -142,18 +146,18 @@ async function drawVerticalCardOnPdf(pdf, ctx) {
 
   // Top: logo centered
   if (logoImg) {
-    try { pdf.addImage(logoImg, "PNG", (W - 10) / 2, MARGIN + 1, 10, 10); } catch (_) {}
+    try { pdf.addImage(logoImg, "PNG", (W - 10) / 2, MARGIN + 2, 10, 10); } catch (_) {}
   }
   pdf.setFont("helvetica", "normal"); pdf.setFontSize(5); pdf.setTextColor(74, 74, 74);
-  pdf.text(String(design.dojo_name).toUpperCase(), W / 2, MARGIN + 13.5, { align: "center" });
+  pdf.text(String(design.dojo_name).toUpperCase(), W / 2, MARGIN + 15.5, { align: "center" });
   pdf.setFont("times", "normal"); pdf.setFontSize(10); pdf.setTextColor(15, 15, 15);
-  pdf.text(String(design.certificate_title), W / 2, MARGIN + 17, { align: "center" });
+  pdf.text(String(design.certificate_title), W / 2, MARGIN + 19, { align: "center" });
 
   // Photo + QR row
   const PHOTO_W = 14 * (design.photo_size || 1);
   const PHOTO_H = 18 * (design.photo_size || 1);
   const QR_SIDE = 18 * (design.qr_size || 1);
-  const rowY = MARGIN + 20;
+  const rowY = MARGIN + 22;
   const rowGap = 2;
   const rowW = PHOTO_W + rowGap + QR_SIDE;
   const startX = (W - rowW) / 2;
@@ -388,17 +392,20 @@ export default function IDCard({ user, defaultOrientation = "horizontal" }) {
               padding: isVertical ? 24 : 32,
             }}
           >
-            {/* Optional background watermark */}
+            {/* Optional background watermark (with optional zoom override) */}
             {design.background_url && (
-              <div
-                className="absolute inset-0 opacity-40 pointer-events-none"
-                style={{
-                  backgroundImage: `url(${design.background_url})`,
-                  backgroundSize: "cover",
-                  backgroundPosition: "center",
-                }}
-                aria-hidden
-              />
+              <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden>
+                <div
+                  className="absolute inset-0 opacity-40"
+                  style={{
+                    backgroundImage: `url(${design.background_url})`,
+                    backgroundSize: "cover",
+                    backgroundPosition: "center",
+                    transform: `scale(${scaleOf(design, "background_size")})`,
+                    transformOrigin: "center center",
+                  }}
+                />
+              </div>
             )}
 
             {isVertical ? (
@@ -526,15 +533,13 @@ function HorizontalLayout({ user, design, data, loading, logoSrc }) {
             <div className="uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]" style={{ fontSize: pxOf(design, "field_label"), lineHeight: 1.4 }}>{design.name_label}</div>
             <div className="font-serif font-medium truncate" data-testid="idcard-name" style={{ fontSize: pxOf(design, "member_name"), lineHeight: 1.25 }}>{user.name}</div>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <div className="uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]" style={{ fontSize: pxOf(design, "field_label"), lineHeight: 1.4 }}>{design.role_label}</div>
-              <div className="font-medium capitalize truncate" style={{ fontSize: pxOf(design, "role_value"), lineHeight: 1.3 }}>{user.role.replace("_", " ")}</div>
-            </div>
-            <div>
-              <div className="uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]" style={{ fontSize: pxOf(design, "field_label"), lineHeight: 1.4 }}>{design.rank_label}</div>
-              <div className="font-medium truncate" style={{ fontSize: pxOf(design, "rank_value"), lineHeight: 1.3 }}>{user.belt_rank || "—"}</div>
-            </div>
+          <div>
+            <div className="uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]" style={{ fontSize: pxOf(design, "field_label"), lineHeight: 1.4 }}>{design.role_label}</div>
+            <div className="font-medium capitalize truncate" style={{ fontSize: pxOf(design, "role_value"), lineHeight: 1.3 }}>{user.role.replace("_", " ")}</div>
+          </div>
+          <div>
+            <div className="uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]" style={{ fontSize: pxOf(design, "field_label"), lineHeight: 1.4 }}>{design.rank_label}</div>
+            <div className="font-medium truncate" style={{ fontSize: pxOf(design, "rank_value"), lineHeight: 1.3 }}>{user.belt_rank || "—"}</div>
           </div>
           <div>
             <div className="uppercase tracking-[0.24em] text-[var(--dojo-ink-soft)]" style={{ fontSize: pxOf(design, "field_label"), lineHeight: 1.4 }}>{design.footer_label}</div>

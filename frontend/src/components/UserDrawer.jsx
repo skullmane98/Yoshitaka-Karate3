@@ -192,7 +192,7 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
               <Field label="Profile Photo" hint="Optional. JPG/PNG under 1.2 MB.">
                 <div className="flex items-center gap-3">
                   {draft.photo_url && <img src={draft.photo_url} alt="" className="h-20 w-20 object-cover border border-[var(--dojo-border)]" />}
-                  <input type="file" accept="image/*" onChange={onPhoto} className="text-sm" />
+                  <input type="file" accept="image/*" capture="environment" onChange={onPhoto} className="text-sm" data-testid="user-profile-photo-upload" />
                   {draft.photo_url && <button type="button" onClick={() => set("photo_url", "")} className="text-xs text-[var(--dojo-hinomaru)] underline">Remove</button>}
                 </div>
               </Field>
@@ -287,6 +287,7 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                     {[
                       ["photo_size", "Student Photo", 100, 300],
                       ["qr_size", "QR Code", 100, 200],
+                      ["background_size", "Card Background", 100, 200],
                     ].map(([key, label, , maxPct]) => {
                       const cur = (draft.idcard_overrides || {})[key];
                       const pct = Math.round(((cur ?? 1)) * 100);
@@ -467,6 +468,7 @@ export default function UserDrawer({ user, currentUser, onClose, onSaved }) {
                     <input
                       type="file"
                       accept="image/*"
+                      capture="environment"
                       onChange={onPhoto}
                       className="text-sm"
                       data-testid="user-idcard-photo-upload"
