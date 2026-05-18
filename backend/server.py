@@ -1626,18 +1626,16 @@ app.include_router(features_router)
 
 _cors_origins = [o.strip() for o in os.environ.get('CORS_ORIGINS', '*').split(',') if o.strip()]
 # Allow-list of trusted domain patterns. Anything not matched here AND not in
-# CORS_ORIGINS env var will be rejected by FastAPI with HTTP 400 "Disallowed
-# CORS origin" during the browser preflight (OPTIONS). When adding a new
-# production domain, prefer setting CORS_ORIGINS on Render rather than editing
-# this regex.
+# the CORS_ORIGINS env var will be rejected by FastAPI with HTTP 400
+# "Disallowed CORS origin" during the browser preflight (OPTIONS). To allow a
+# new domain, prefer setting CORS_ORIGINS in /etc/yoshitaka-api.env on the VPS
+# rather than editing this regex.
 _cors_regex = (
-    # Emergent preview domains (every fork's preview URL ends here)
-    r"https?://([a-z0-9-]+\.)*(preview\.)?emergentagent\.com"
     # Local dev
-    r"|http://localhost(:\d+)?"
-    # Hostinger's auto-generated subdomains (yoursite.hostingersite.com)
-    r"|https?://([a-z0-9-]+\.)*hostingersite\.com"
-    # The actual production dojo domain + www variant
+    r"http://localhost(:\d+)?"
+    # Emergent preview domains (only used while developing against the preview)
+    r"|https?://([a-z0-9-]+\.)*(preview\.)?emergentagent\.com"
+    # The actual production dojo domain (root, www, and api subdomain)
     r"|https?://([a-z0-9-]+\.)*yoshitakakaratedo\.com"
 )
 app.add_middleware(

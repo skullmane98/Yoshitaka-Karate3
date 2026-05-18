@@ -1,0 +1,27 @@
+[Unit]
+Description=Yoshitaka Karate-Do FastAPI backend
+After=network.target mysql.service
+Wants=mysql.service
+
+[Service]
+Type=simple
+User=yoshi
+Group=yoshi
+WorkingDirectory=/srv/yoshitaka/app/backend
+EnvironmentFile=/etc/yoshitaka-api.env
+# 1 uvicorn worker is plenty on KVM 1 (it's async — handles many concurrent
+# requests). Bump -w to 2 only after upgrading to KVM 2+.
+ExecStart=/srv/yoshitaka/app/backend/.venv/bin/gunicorn server:app \
+    -k uvicorn.workers.UvicornWorker \
+    -w 1 \
+    -b 127.0.0.1:8001 \
+    --timeout 60 \
+    --access-logfile - \
+    --error-logfile -
+Restart=always
+RestartSec=3
+# Hard cap memory so a runaway process can never OOM the whole box.
+MemoryMax=600M
+
+[Install]
+WantedBy=multi-user.target

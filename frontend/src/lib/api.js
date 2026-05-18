@@ -3,17 +3,11 @@ import axios from "axios";
 // Tolerate operators who accidentally set REACT_APP_BACKEND_URL with a trailing
 // slash or with `/api` already appended — both situations cause `/api/api/...`
 // 404s in production. Normalise once at module load.
-//
-// Defence-in-depth fallback: if REACT_APP_BACKEND_URL is unset at build time
-// (a common Hostinger / Vercel mistake), point at the known Render service so
-// login still works instead of throwing 404s against the static-frontend host.
-const PROD_FALLBACK = "https://yoshitaka-karate.onrender.com";
 const RAW = (process.env.REACT_APP_BACKEND_URL || "").trim();
-let BASE = RAW.replace(/\/+$/, "").replace(/\/api$/i, "");
+const BASE = RAW.replace(/\/+$/, "").replace(/\/api$/i, "");
 if (!BASE) {
   // eslint-disable-next-line no-console
-  console.warn(`[api] REACT_APP_BACKEND_URL not set — falling back to ${PROD_FALLBACK}`);
-  BASE = PROD_FALLBACK;
+  console.error("[api] REACT_APP_BACKEND_URL is not set — every API call will fail.");
 }
 export const BACKEND_BASE_URL = BASE;
 
@@ -21,10 +15,8 @@ const api = axios.create({
   baseURL: `${BASE}/api`,
   withCredentials: false,
   headers: { "Content-Type": "application/json" },
-  // Render free tier can take 30-60s to cold-start. The total time the client
-  // is willing to wait is `timeout × (1 + retries)`; we keep the per-attempt
-  // timeout high enough to ride out a single cold start without false negatives.
-  timeout: 90000,
+  // VPS-backed FastAPI is always warm — 20 s is plenty even for slow networks.
+  timeout: 20000,
 });
 
 // Attach bearer token from localStorage if present (fallback for cookie issues)
@@ -36,18 +28,12 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// ─── Cold-start resilience ────────────────────────────────────────────────
-// Render's free-tier proxy returns 502 / 503 / 504 (or aborts the connection
-// entirely) while the worker spins back up after 15 min of inactivity. The
-// real backend is fine — we just need to wait it out. Strategy:
-//   • 5 retries with exponential backoff capped at 8 s
-//   • Treat NETWORK errors + 502 / 503 / 504 / 520-524 as "still waking up"
-//   • Only surface the error after every retry has been used
-//
-// Worst case the user waits ~28 s for the very first login of the day. After
-// that the dyno stays warm for ~15 min so subsequent calls are instant.
-const RETRY_STATUSES = new Set([502, 503, 504, 520, 521, 522, 523, 524]);
-const MAX_RETRIES = 5;
+// ─── Transient failure resilience ─────────────────────────────────────────
+// On a VPS the backend doesn't cold-start, but a brief 502 can still occur
+// during `systemctl restart yoshitaka-api` (≈1 s). One quick retry rides
+// over that without surfacing an error to the user.
+const RETRY_STATUSES = new Set([502, 503, 504]);
+const MAX_RETRIES = 2;
 
 // Lightweight metrics for the in-app `/status` page. Persists across page
 // navigations (module scope) but resets on a hard reload.
@@ -64,13 +50,13 @@ export const apiMetrics = {
 
 function shouldRetry(error) {
   if (!error) return false;
-  if (!error.response) return true; // network / timeout / DNS — likely cold start
+  if (!error.response) return true; // network / timeout
   return RETRY_STATUSES.has(error.response.status);
 }
 
 function backoffDelay(attempt) {
-  // 1.5s, 3s, 5s, 8s, 8s — gives Render ~25s to come up, plus our own timeout.
-  return Math.min(8000, 1500 * Math.pow(1.7, attempt));
+  // 600 ms, 1.2 s — total ~1.8 s extra before failing loud.
+  return Math.min(1500, 600 * Math.pow(2, attempt));
 }
 
 api.interceptors.response.use(
@@ -100,7 +86,7 @@ api.interceptors.response.use(
     apiMetrics.total_retries += 1;
     const wait = backoffDelay(cfg.__yk_attempt - 1);
     // eslint-disable-next-line no-console
-    console.info(`[api] cold-start retry ${cfg.__yk_attempt}/${MAX_RETRIES} in ${wait}ms`);
+    console.info(`[api] transient retry ${cfg.__yk_attempt}/${MAX_RETRIES} in ${wait}ms`);
     await new Promise((res) => setTimeout(res, wait));
     return api.request(cfg);
   }
@@ -110,15 +96,15 @@ export function formatApiError(err) {
   const detail = err?.response?.data?.detail;
   const status = err?.response?.status;
   if (!detail) {
-    if (err?.code === "ECONNABORTED") return "Server is taking too long to wake up. Please try again in a few seconds.";
-    if (!err?.response) return "Could not reach the dojo server. It may be waking up — please try again.";
+    if (err?.code === "ECONNABORTED") return "The server is slow to respond. Please try again.";
+    if (!err?.response) return "Could not reach the dojo server. Check your connection and try again.";
     if (RETRY_STATUSES.has(status)) {
-      return "The dojo server is still waking up. Please try again in 30 seconds.";
+      return "The dojo server is briefly unavailable. Please try again in a few seconds.";
     }
     if (status === 400) {
       const body = err?.response?.data;
       if (typeof body === "string" && body.toLowerCase().includes("cors")) {
-        return "This site isn't on the backend's allow-list. The Render backend needs to be redeployed with the latest code to accept this domain.";
+        return "This site isn't on the backend's allow-list. Update CORS_ORIGINS in /etc/yoshitaka-api.env on the VPS.";
       }
     }
     return err?.message || "Something went wrong";
@@ -131,10 +117,8 @@ export function formatApiError(err) {
   return String(detail);
 }
 
-// Fire-and-forget ping to wake a sleeping backend (Render free tier).
-// Safe to call multiple times — it's just a GET to /api/health.
-export function warmBackend() {
-  fetch(`${BASE}/api/health`, { method: "GET", cache: "no-store" }).catch(() => {});
-}
+// Kept for compatibility with components that call `warmBackend()` on mount.
+// On a VPS the backend is always warm — this is a no-op.
+export function warmBackend() { /* no-op on VPS */ }
 
 export default api;

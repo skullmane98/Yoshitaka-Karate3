@@ -7,10 +7,11 @@ digital ID cards. Backend deployed to Render; database on Hostinger MySQL; front
 static build served by Hostinger.
 
 ## Architecture
-- **Frontend**: React 19 + Tailwind + shadcn (build → Hostinger)
-- **Backend**: FastAPI + SQLAlchemy/SQLModel + aiomysql (Render)
-- **DB**: MySQL on Hostinger (uses `NullPool` to avoid idle-drop crashes — DO NOT pool)
+- **Frontend**: React 19 + Tailwind + shadcn (build → Hostinger VPS / nginx)
+- **Backend**: FastAPI + SQLAlchemy/SQLModel + aiomysql (Hostinger VPS / gunicorn + systemd)
+- **DB**: MySQL 8 on the same VPS (local-socket, pooled with `pool_pre_ping`)
 - **Auth**: JWT custom auth. Login accepts **email, username, OR member_number**.
+- **Routing**: `BrowserRouter` (clean URLs, nginx SPA fallback via `try_files`).
 
 ## Roles (hierarchy, highest → lowest)
 super_admin → admin → renshi → sensei → team_member → student
@@ -47,6 +48,13 @@ super_admin → admin → renshi → sensei → team_member → student
   - `drawHorizontalCardOnPdf` adds `TOP_PAD` safe-zone so CR-80 prints no longer clip ascenders
   - `drawVerticalCardOnPdf` logo + heading Y-coords shifted to clear logo
   - Horizontal layout (DOM + PDF) stacks Role → Rank → Member # vertically so Rank can never crowd the QR column
+- **[2026-02-17] Migrated off Render → Hostinger VPS (187.77.15.182, Ubuntu 24.04, KVM 1)**
+  - `HashRouter` → `BrowserRouter` (clean URLs; nginx handles SPA fallback)
+  - `db.py`: switched MySQL pool from `NullPool` → standard pool with `pool_pre_ping`, `pool_recycle=1800`; opt-in `DB_USE_NULLPOOL=1` for remote-MySQL setups
+  - `api.js`: removed Render fallback URL + aggressive cold-start retry; now 2 quick retries (≤1.8s) for transient 502/503/504 only, 20s timeout
+  - `server.py`: tightened CORS regex (dropped `hostingersite.com`; kept localhost, preview, `yoshitakakaratedo.com`)
+  - Added `/app/deploy/`: `README.md` (runbook), `nginx-yoshitaka.conf`, `yoshitaka-api.service` (systemd), `yoshitaka-api.env.example`, `deploy.sh` (one-command updates)
+  - `frontend/.env.production` points the build at `https://api.yoshitakakaratedo.com`
 
 ## Backlog
 ### P1
@@ -72,8 +80,10 @@ super_admin → admin → renshi → sensei → team_member → student
 - `/app/frontend/src/lib/idcardTemplates.js` — Student / Team Class / Sensei templates
 
 ## Critical Operational Notes
-- MySQL connections drop after idle; **NullPool is required** in `db.py`
-- Hostinger auto-build runs `CI=true` — keep ESLint warnings at zero
+- **VPS deploy**: see `/app/deploy/README.md` — full runbook + one-command `./deploy/deploy.sh`
+- MySQL lives on the same VPS as FastAPI; standard pool with `pool_pre_ping` handles idle drops
 - All backend routes prefixed `/api`
-- Use `REACT_APP_BACKEND_URL` from `frontend/.env`
+- Frontend uses `BrowserRouter`; nginx SPA fallback is `try_files $uri /index.html`
+- Use `REACT_APP_BACKEND_URL` from `frontend/.env.production` (build-time) — points at `https://api.yoshitakakaratedo.com`
+- Backend env lives at `/etc/yoshitaka-api.env` on the VPS (chmod 600); template at `/app/deploy/yoshitaka-api.env.example`
 - Test credentials in `/app/memory/test_credentials.md`

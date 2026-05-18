@@ -1,14 +1,13 @@
 """Async SQLAlchemy / SQLModel engine + session dependency.
 
 DATABASE_URL formats supported:
-  • mysql+aiomysql://user:pass@host:port/dbname  (production — Hostinger)
+  • mysql+aiomysql://user:pass@host:port/dbname  (production — Hostinger VPS)
   • sqlite+aiosqlite:///./yoshitaka.db           (preview / local dev fallback)
 
-Configured with NullPool on MySQL to avoid the aiomysql "TCPTransport closed"
-bug, which fires when a pooled connection survives across asyncio event loops
-(common on Render free tier and any environment that may dispose the loop).
-NullPool opens a fresh connection per request — slightly slower, fully reliable
-on Hostinger shared MySQL.
+Pooling: MySQL on a Hostinger VPS sits on the same box as FastAPI, so we use a
+small standard pool with `pool_pre_ping` to transparently recycle stale
+connections after idle drops. Set `DB_USE_NULLPOOL=1` to fall back to NullPool
+(useful for remote-MySQL deployments where idle-drop is aggressive).
 """
 import os
 from typing import AsyncGenerator
@@ -19,16 +18,29 @@ from sqlmodel import SQLModel
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 IS_SQLITE = DATABASE_URL.startswith("sqlite")
+USE_NULLPOOL = os.environ.get("DB_USE_NULLPOOL", "0") == "1"
 
 if IS_SQLITE:
-    # SQLite has no concept of connection pooling that fights asyncio. Skip
-    # NullPool + the MySQL-specific connect args so the engine bootstraps cleanly.
+    # SQLite has no concept of connection pooling that fights asyncio.
     engine = create_async_engine(DATABASE_URL, echo=False)
-else:
+elif USE_NULLPOOL:
+    # Remote MySQL with aggressive idle-drop — open a fresh connection per request.
     engine = create_async_engine(
         DATABASE_URL,
         echo=False,
         poolclass=NullPool,
+        connect_args={"connect_timeout": 10},
+    )
+else:
+    # Local-socket / VPS MySQL: keep a small warm pool, pre-ping to handle
+    # the rare idle drop without surfacing an error to the user.
+    engine = create_async_engine(
+        DATABASE_URL,
+        echo=False,
+        pool_size=5,
+        max_overflow=5,
+        pool_pre_ping=True,
+        pool_recycle=1800,
         connect_args={"connect_timeout": 10},
     )
 

@@ -1,5 +1,5 @@
 import "@/App.css";
-import { HashRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
@@ -26,7 +26,7 @@ export default function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange={false}>
       <AuthProvider>
-        <HashRouter>
+        <BrowserRouter>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -80,7 +80,7 @@ export default function App() {
             }
           />
         </Routes>
-        </HashRouter>
+        </BrowserRouter>
       </AuthProvider>
     </ThemeProvider>
   );
